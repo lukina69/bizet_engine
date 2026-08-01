@@ -1,0 +1,6 @@
+# Les mêmes règles que Bizet, moins celles qui ne concernent que Flutter :
+# `lints/recommended.yaml` est le socle sur lequel `flutter_lints` est bâti.
+include: package:lints/recommended.yaml
+
+linter:
+  rules:

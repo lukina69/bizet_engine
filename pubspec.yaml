@@ -1,0 +1,19 @@
+name: bizet_engine
+description: >-
+  Le cœur musical de Bizet : lecture de partitions LilyPond, modèle de données
+  musicales, transformations et rendu sonore par SoundFont. Dart pur, sans
+  Flutter, pour être utilisable en ligne de commande comme dans une application.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  # Synthèse SoundFont. Dart pur, sans dépendance Flutter — c'est ce qui permet
+  # au moteur de fabriquer du son hors de toute application.
+  dart_melty_soundfont: ^2.0.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

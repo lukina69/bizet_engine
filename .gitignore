@@ -1,0 +1,10 @@
+# Fichiers produits par les outils Dart.
+.dart_tool/
+.packages
+pubspec.lock
+build/
+
+# Éditeurs.
+.idea/
+*.iml
+.vscode/
