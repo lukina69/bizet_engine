@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart' show ArrayInt16;
 
 import '../model/balancement.dart';
+import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
 import '../model/mesure.dart';
@@ -29,13 +30,15 @@ class ExportMusical {
   /// fichier exporté doit sonner comme ce que l'utilisateur a réglé.
   /// Les voix ajoutées par [epaisseur] sont écrites comme de vraies notes, sur
   /// leur propre canal : l'utilisateur s'attend à ce que le fichier corresponde
-  /// à ce qu'il a entendu. Le fichier est moins « propre » à réutiliser, c'est
-  /// un compromis assumé.
+  /// à ce qu'il a entendu. Il en va de même des voix ajoutées par
+  /// [compagnons], qui gardent en plus leur propre sonorité.
+  /// Le fichier est moins « propre » à réutiliser, c'est un compromis assumé.
   Uint8List versMidi(
     Melodie melodie, {
     double articulation = 1.0,
     Balancement balancement = const Balancement(),
     Epaisseur epaisseur = Epaisseur.simple,
+    Compagnons compagnons = Compagnons.aucun,
   }) {
     final List<int> piste = [];
 
@@ -48,14 +51,19 @@ class ExportMusical {
       microsecondes & 0xFF,
     ]);
 
-    // Choix de l'instrument, le même sur chaque canal utilisé.
+    // Choix de l'instrument, le même sur chaque canal de l'épaisseur.
     for (int canal = 0; canal < epaisseur.canaux; canal++) {
       piste.addAll([0x00, 0xC0 | canal, melodie.instrumentMidi & 0x7F]);
     }
 
+    // Les compagnons, eux, ont chacun le leur, sur les canaux suivants.
+    for (final voix in compagnons.canaux(epaisseur.canaux)) {
+      piste.addAll([0x00, 0xC0 | voix.canal, voix.programme & 0x7F]);
+    }
+
     int precedent = 0;
-    for (final _Evenement e
-        in _evenements(melodie, articulation, balancement, epaisseur)) {
+    for (final _Evenement e in _evenements(
+        melodie, articulation, balancement, epaisseur, compagnons)) {
       piste.addAll(_dureeVariable(e.tic - precedent));
       piste.addAll([
         (e.debut ? 0x90 : 0x80) | e.canal,
@@ -109,6 +117,7 @@ class ExportMusical {
     double articulation,
     Balancement balancement,
     Epaisseur epaisseur,
+    Compagnons compagnons,
   ) {
     final List<_Evenement> liste = [];
     double debutMesure = 0.0;
@@ -121,7 +130,10 @@ class ExportMusical {
             (balancement.applique(debut) * ticsParNoire).round();
         final int ticFin = (balancement.applique(fin) * ticsParNoire).round();
 
-        for (final voix in epaisseur.voix(note.hauteur)) {
+        for (final voix in [
+          ...epaisseur.voix(note.hauteur),
+          ...compagnons.voix(note.hauteur, epaisseur.canaux),
+        ]) {
           liste.add(_Evenement(
               ticDebut, true, voix.hauteur, voix.canal, voix.velocite));
           liste.add(_Evenement(ticFin, false, voix.hauteur, voix.canal, 0));

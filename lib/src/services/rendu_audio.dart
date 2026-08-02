@@ -1,6 +1,7 @@
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
 import '../model/balancement.dart';
+import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
 import '../model/reverberation.dart';
@@ -103,12 +104,15 @@ class RenduAudio {
   /// temps eux-mêmes.
   ///
   /// [reverberation] choisit le lieu : la dose d'écho ajoutée au son sec.
+  ///
+  /// [compagnons] ajoute un ou deux autres instruments à l'unisson.
   ArrayInt16 rendre(
     Melodie melodie, {
     double articulation = 1.0,
     Balancement balancement = const Balancement(),
     Reverberation reverberation = Reverberation.salon,
     Epaisseur epaisseur = Epaisseur.simple,
+    Compagnons compagnons = Compagnons.aucun,
   }) {
     final Synthesizer synth = _synth!;
     synth.reset();
@@ -117,29 +121,17 @@ class RenduAudio {
     // les mêmes réglages, sans quoi les doublages sonneraient d'un autre
     // instrument, dans un autre lieu et à une autre hauteur.
     for (int canal = 0; canal < epaisseur.canaux; canal++) {
-      // La dose de réverbération — reset() vient de la remettre au salon par
-      // défaut, on la cale sur le lieu choisi.
-      synth.processMidiMessage(
-        channel: canal,
-        command: 0xB0, // controller
-        data1: 0x5B, // reverb send
-        data2: reverberation.envoi,
-      );
+      _preparerCanal(synth, canal, melodie.instrumentMidi, reverberation);
+    }
 
-      // Attention : selectPreset() attend un INDICE dans la liste des
-      // instruments du fichier .sf2, pas un numéro de programme General MIDI.
-      // Comme Melodie.instrumentMidi est bien un numéro GM, on envoie
-      // directement un changement de programme MIDI.
-      synth.processMidiMessage(
-        channel: canal,
-        command: 0xC0, // program change
-        data1: melodie.instrumentMidi,
-        data2: 0,
-      );
+    // Les compagnons prennent les canaux suivants : c'est justement parce
+    // qu'ils sont à part qu'ils peuvent porter un autre timbre.
+    for (final voix in compagnons.canaux(epaisseur.canaux)) {
+      _preparerCanal(synth, voix.canal, voix.programme, reverberation);
     }
 
     final List<_Evenement> evenements =
-        _evenements(melodie, articulation, balancement, epaisseur);
+        _evenements(melodie, articulation, balancement, epaisseur, compagnons);
 
     // Le modèle exprime les durées en temps (1.0 = une noire).
     final double secondesParTemps = 60.0 / melodie.tempo;
@@ -187,6 +179,34 @@ class RenduAudio {
     return tampon;
   }
 
+  /// Installe un canal MIDI : son lieu et sa sonorité.
+  void _preparerCanal(
+    Synthesizer synth,
+    int canal,
+    int programme,
+    Reverberation reverberation,
+  ) {
+    // La dose de réverbération — reset() vient de la remettre au salon par
+    // défaut, on la cale sur le lieu choisi.
+    synth.processMidiMessage(
+      channel: canal,
+      command: 0xB0, // controller
+      data1: 0x5B, // reverb send
+      data2: reverberation.envoi,
+    );
+
+    // Attention : selectPreset() attend un INDICE dans la liste des
+    // instruments du fichier .sf2, pas un numéro de programme General MIDI.
+    // Comme Melodie.instrumentMidi est bien un numéro GM, on envoie
+    // directement un changement de programme MIDI.
+    synth.processMidiMessage(
+      channel: canal,
+      command: 0xC0, // program change
+      data1: programme,
+      data2: 0,
+    );
+  }
+
   /// Convertit la mélodie en événements note-on / note-off, triés dans le temps.
   ///
   /// La durée de chaque mesure vient de [Mesure.dureeEffective] : un silence en
@@ -200,12 +220,14 @@ class RenduAudio {
   /// où le rythme joué s'écarte du rythme écrit.
   /// [epaisseur] ajoute les voix doublées : elles partent au même instant et
   /// durent aussi longtemps que la note d'origine, articulation et balancement
-  /// compris, sinon les voix se désynchroniseraient.
+  /// compris, sinon les voix se désynchroniseraient. [compagnons] ajoute de
+  /// même les voix à l'unisson.
   List<_Evenement> _evenements(
     Melodie melodie,
     double articulation,
     Balancement balancement,
     Epaisseur epaisseur,
+    Compagnons compagnons,
   ) {
     final List<_Evenement> liste = [];
     double debutMesure = 0.0;
@@ -216,7 +238,10 @@ class RenduAudio {
         final double fin = balancement
             .applique(debutMesure + note.position + note.duree * articulation);
 
-        for (final voix in epaisseur.voix(note.hauteur)) {
+        for (final voix in [
+          ...epaisseur.voix(note.hauteur),
+          ...compagnons.voix(note.hauteur, epaisseur.canaux),
+        ]) {
           liste.add(_Evenement(
               debut, true, voix.hauteur, voix.canal, voix.velocite));
           liste.add(_Evenement(fin, false, voix.hauteur, voix.canal, 0));
