@@ -4,6 +4,7 @@ import '../model/balancement.dart';
 import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
+import '../model/reglages.dart';
 import '../model/reverberation.dart';
 
 /// Fabrique le son d'une [Melodie] : la mélodie entre, une forme d'onde (PCM)
@@ -97,23 +98,18 @@ class RenduAudio {
   /// Rend la mélodie complète en PCM (16 bits, mono). Réclame un SoundFont
   /// déjà chargé.
   ///
-  /// [articulation] multiplie la durée sonore des notes : 1,0 les laisse
-  /// sonner jusqu'à la suivante, 0,4 les pique.
-  ///
-  /// [balancement] retarde ce qui tombe entre deux temps, sans déplacer les
-  /// temps eux-mêmes.
-  ///
-  /// [reverberation] choisit le lieu : la dose d'écho ajoutée au son sec.
-  ///
-  /// [compagnons] ajoute un ou deux autres instruments à l'unisson.
+  /// Les [reglages] disent tout de la façon de jouer la partition : à quel
+  /// tempo, dans quel mode, à quelle hauteur, avec quelle sonorité, quel
+  /// piqué, quel balancement, quel lieu et quels doublages.
   ArrayInt16 rendre(
-    Melodie melodie, {
-    double articulation = 1.0,
-    Balancement balancement = const Balancement(),
-    Reverberation reverberation = Reverberation.salon,
-    Epaisseur epaisseur = Epaisseur.simple,
-    Compagnons compagnons = Compagnons.aucun,
+    Melodie partition, {
+    Reglages reglages = const Reglages(),
   }) {
+    final Melodie melodie = reglages.applique(partition);
+    final Epaisseur epaisseur = reglages.epaisseur;
+    final Compagnons compagnons = reglages.compagnons;
+    final Reverberation reverberation = reglages.reverberation;
+
     final Synthesizer synth = _synth!;
     synth.reset();
 
@@ -130,8 +126,7 @@ class RenduAudio {
       _preparerCanal(synth, voix.canal, voix.programme, reverberation);
     }
 
-    final List<_Evenement> evenements =
-        _evenements(melodie, articulation, balancement, epaisseur, compagnons);
+    final List<_Evenement> evenements = _evenements(melodie, reglages);
 
     // Le modèle exprime les durées en temps (1.0 = une noire).
     final double secondesParTemps = 60.0 / melodie.tempo;
@@ -222,33 +217,25 @@ class RenduAudio {
   /// durent aussi longtemps que la note d'origine, articulation et balancement
   /// compris, sinon les voix se désynchroniseraient. [compagnons] ajoute de
   /// même les voix à l'unisson.
-  List<_Evenement> _evenements(
-    Melodie melodie,
-    double articulation,
-    Balancement balancement,
-    Epaisseur epaisseur,
-    Compagnons compagnons,
-  ) {
+  List<_Evenement> _evenements(Melodie melodie, Reglages reglages) {
+    final Balancement balancement = reglages.balancement;
+    final Epaisseur epaisseur = reglages.epaisseur;
+    final Compagnons compagnons = reglages.compagnons;
+
     final List<_Evenement> liste = [];
-    double debutMesure = 0.0;
 
-    for (final mesure in melodie.mesures) {
-      for (final note in mesure.notes) {
-        final double debut = balancement.applique(debutMesure + note.position);
-        final double fin = balancement
-            .applique(debutMesure + note.position + note.duree * articulation);
+    for (final sonnante in reglages.notesSonnantes(melodie)) {
+      final double debut = balancement.applique(sonnante.debut);
+      final double fin = balancement.applique(sonnante.fin);
 
-        for (final voix in [
-          ...epaisseur.voix(note.hauteur),
-          ...compagnons.voix(note.hauteur, epaisseur.canaux),
-        ]) {
-          liste.add(_Evenement(
-              debut, true, voix.hauteur, voix.canal, voix.velocite));
-          liste.add(_Evenement(fin, false, voix.hauteur, voix.canal, 0));
-        }
+      for (final voix in [
+        ...epaisseur.voix(sonnante.hauteur),
+        ...compagnons.voix(sonnante.hauteur, epaisseur.canaux),
+      ]) {
+        liste.add(
+            _Evenement(debut, true, voix.hauteur, voix.canal, voix.velocite));
+        liste.add(_Evenement(fin, false, voix.hauteur, voix.canal, 0));
       }
-
-      debutMesure += mesure.dureeEffective;
     }
 
     // À instant égal, on éteint avant d'allumer : deux notes de même hauteur

@@ -5,6 +5,7 @@
 /// * lire une partition LilyPond ([LilypondParser]) ;
 /// * la représenter ([Melodie], [Mesure], [Note], [Armure]) ;
 /// * la transformer — transposition, mode majeur/mineur, découpe ;
+/// * dire comment la jouer ([Reglages]) ;
 /// * en fabriquer du son ([RenduAudio]) et des fichiers ([ExportMusical]).
 ///
 /// Ce qu'il ne sait pas faire, volontairement : jouer ce son dans un
@@ -23,7 +24,9 @@ export 'src/model/epaisseur.dart';
 export 'src/model/melodie.dart';
 export 'src/model/mesure.dart';
 export 'src/model/note.dart';
+export 'src/model/reglages.dart';
 export 'src/model/reverberation.dart';
+export 'src/model/rubato.dart';
 export 'src/services/export_musical.dart';
 export 'src/services/lilypond_parser.dart';
 export 'src/services/rendu_audio.dart';

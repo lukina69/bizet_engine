@@ -70,6 +70,63 @@ class Melodie {
     return valeur > 0 ? valeur : 1.0;
   }
 
+  /// Les notes du morceau à la file, mesures aplaties : pour chacune, l'instant
+  /// où elle commence et celui où elle cesse de sonner, en temps (1,0 = une
+  /// noire). Les mesures s'enchaînent sur leur durée déclarée, silences de fin
+  /// compris.
+  ///
+  /// [articulation] multiplie la durée sonore sans toucher au rythme : la note
+  /// suivante démarre toujours à l'heure, seul le silence qui la précède
+  /// s'allonge. Au-delà de 1,0 les notes se recouvrent, et c'est ce qui fait un
+  /// vrai lié — sauf quand la même hauteur revient juste après : là, la fin de
+  /// la première éteindrait la seconde, puisqu'une hauteur ne peut sonner
+  /// qu'une fois à la fois sur un canal. Dans ce cas seulement, la note est
+  /// rendue bord à bord avec sa suivante.
+  ///
+  /// [ecarts] déplace le début et la fin écrits de chaque note — c'est par là
+  /// que passe le rubato. Le piqué s'applique **ensuite**, sur le rythme ainsi
+  /// dévié : une note qu'on étire s'entend plus longtemps, piquée ou liée.
+  List<({double debut, double fin, int hauteur})> deroule({
+    double articulation = 1.0,
+    List<({double debut, double fin})> ecarts = const [],
+  }) {
+    final List<({double debut, double fin, int hauteur})> suite = [];
+    double debutMesure = 0.0;
+    int rang = 0;
+
+    for (final mesure in mesures) {
+      for (final note in mesure.notes) {
+        final ({double debut, double fin}) ecart =
+            rang < ecarts.length ? ecarts[rang] : (debut: 0.0, fin: 0.0);
+        rang++;
+
+        final double debut = debutMesure + note.position + ecart.debut;
+        final double finEcrite =
+            debutMesure + note.position + note.duree + ecart.fin;
+        suite.add((
+          debut: debut,
+          fin: debut + (finEcrite - debut) * articulation,
+          hauteur: note.hauteur,
+        ));
+      }
+      debutMesure += mesure.dureeEffective;
+    }
+
+    for (int i = 0; i < suite.length - 1; i++) {
+      final suivante = suite[i + 1];
+      if (suivante.hauteur == suite[i].hauteur &&
+          suite[i].fin > suivante.debut) {
+        suite[i] = (
+          debut: suite[i].debut,
+          fin: suivante.debut,
+          hauteur: suite[i].hauteur,
+        );
+      }
+    }
+
+    return suite;
+  }
+
   /// Transposition globale du morceau de [intervalle] demi-tons.
   Melodie transposee(int intervalle) => Melodie(
         titre: titre,

@@ -7,7 +7,7 @@ import '../model/balancement.dart';
 import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
-import '../model/mesure.dart';
+import '../model/reglages.dart';
 
 /// Écrit une [Melodie] dans un format que le reste du monde sait lire : MIDI
 /// pour la partition jouable, WAV pour le son déjà fabriqué.
@@ -26,20 +26,21 @@ class ExportMusical {
   // MIDI : fichier standard de type 0, une seule piste.
   // -------------------------------------------------------------------
 
-  /// [articulation] et [balancement] s'appliquent comme à la lecture : le
-  /// fichier exporté doit sonner comme ce que l'utilisateur a réglé.
-  /// Les voix ajoutées par [epaisseur] sont écrites comme de vraies notes, sur
-  /// leur propre canal : l'utilisateur s'attend à ce que le fichier corresponde
-  /// à ce qu'il a entendu. Il en va de même des voix ajoutées par
-  /// [compagnons], qui gardent en plus leur propre sonorité.
-  /// Le fichier est moins « propre » à réutiliser, c'est un compromis assumé.
+  /// Les [reglages] s'appliquent comme à la lecture : le fichier exporté doit
+  /// sonner comme ce que l'utilisateur a réglé. Les voix ajoutées par
+  /// l'épaisseur sont donc écrites comme de vraies notes, sur leur propre
+  /// canal, et celles des compagnons gardent en plus leur propre sonorité. Le
+  /// fichier est moins « propre » à réutiliser, c'est un compromis assumé.
+  ///
+  /// La réverbération n'a pas d'équivalent en MIDI : c'est le seul réglage que
+  /// le fichier ne peut pas emporter.
   Uint8List versMidi(
-    Melodie melodie, {
-    double articulation = 1.0,
-    Balancement balancement = const Balancement(),
-    Epaisseur epaisseur = Epaisseur.simple,
-    Compagnons compagnons = Compagnons.aucun,
+    Melodie partition, {
+    Reglages reglages = const Reglages(),
   }) {
+    final Melodie melodie = reglages.applique(partition);
+    final Epaisseur epaisseur = reglages.epaisseur;
+    final Compagnons compagnons = reglages.compagnons;
     final List<int> piste = [];
 
     // Tempo : nombre de microsecondes par noire.
@@ -62,8 +63,7 @@ class ExportMusical {
     }
 
     int precedent = 0;
-    for (final _Evenement e in _evenements(
-        melodie, articulation, balancement, epaisseur, compagnons)) {
+    for (final _Evenement e in _evenements(melodie, reglages)) {
       piste.addAll(_dureeVariable(e.tic - precedent));
       piste.addAll([
         (e.debut ? 0x90 : 0x80) | e.canal,
@@ -112,34 +112,27 @@ class ExportMusical {
 
   /// Débuts et fins de notes, en tics, triés dans le temps. Les mesures
   /// s'enchaînent sur leur durée déclarée, silences de fin compris.
-  List<_Evenement> _evenements(
-    Melodie melodie,
-    double articulation,
-    Balancement balancement,
-    Epaisseur epaisseur,
-    Compagnons compagnons,
-  ) {
+  List<_Evenement> _evenements(Melodie melodie, Reglages reglages) {
+    final Balancement balancement = reglages.balancement;
+    final Epaisseur epaisseur = reglages.epaisseur;
+    final Compagnons compagnons = reglages.compagnons;
+
     final List<_Evenement> liste = [];
-    double debutMesure = 0.0;
 
-    for (final Mesure mesure in melodie.mesures) {
-      for (final note in mesure.notes) {
-        final double debut = debutMesure + note.position;
-        final double fin = debut + note.duree * articulation;
-        final int ticDebut =
-            (balancement.applique(debut) * ticsParNoire).round();
-        final int ticFin = (balancement.applique(fin) * ticsParNoire).round();
+    for (final sonnante in reglages.notesSonnantes(melodie)) {
+      final int ticDebut =
+          (balancement.applique(sonnante.debut) * ticsParNoire).round();
+      final int ticFin =
+          (balancement.applique(sonnante.fin) * ticsParNoire).round();
 
-        for (final voix in [
-          ...epaisseur.voix(note.hauteur),
-          ...compagnons.voix(note.hauteur, epaisseur.canaux),
-        ]) {
-          liste.add(_Evenement(
-              ticDebut, true, voix.hauteur, voix.canal, voix.velocite));
-          liste.add(_Evenement(ticFin, false, voix.hauteur, voix.canal, 0));
-        }
+      for (final voix in [
+        ...epaisseur.voix(sonnante.hauteur),
+        ...compagnons.voix(sonnante.hauteur, epaisseur.canaux),
+      ]) {
+        liste.add(_Evenement(
+            ticDebut, true, voix.hauteur, voix.canal, voix.velocite));
+        liste.add(_Evenement(ticFin, false, voix.hauteur, voix.canal, 0));
       }
-      debutMesure += mesure.dureeEffective;
     }
 
     liste.sort((a, b) {

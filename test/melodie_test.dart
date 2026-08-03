@@ -121,4 +121,60 @@ void main() {
       expect(m.pulsation, 1.0);
     });
   });
+
+  group('deroule', () {
+    Melodie surHauteurs(List<int> hauteurs) => Melodie(
+          titre: '',
+          source: '',
+          tempo: 120,
+          instrumentMidi: 0,
+          mesures: [
+            for (final h in hauteurs)
+              Mesure(
+                notes: [Note(hauteur: h, duree: 1.0, position: 0.0)],
+                duree: 1.0,
+              ),
+          ],
+        );
+
+    test('les mesures s\'enchaînent sur leur durée déclarée', () {
+      final suite = surHauteurs([60, 62, 64]).deroule();
+      expect(suite.map((s) => s.debut), [0.0, 1.0, 2.0]);
+      expect(suite.map((s) => s.fin), [1.0, 2.0, 3.0]);
+      expect(suite.map((s) => s.hauteur), [60, 62, 64]);
+    });
+
+    test('le piqué raccourcit le son sans toucher au rythme', () {
+      final suite = surHauteurs([60, 62]).deroule(articulation: 0.25);
+      expect(suite.map((s) => s.debut), [0.0, 1.0], reason: 'le rythme tient');
+      expect(suite.map((s) => s.fin), [0.25, 1.25]);
+    });
+
+    test('le lié fait déborder chaque note sur la suivante', () {
+      final suite = surHauteurs([60, 62]).deroule(articulation: 1.05);
+      expect(suite.first.fin, closeTo(1.05, 1e-12));
+      expect(suite.first.fin, greaterThan(suite.last.debut));
+    });
+
+    test('deux fois la même hauteur : la première s\'arrête bord à bord', () {
+      // Sinon la fin de la première éteindrait la seconde, qui vient de
+      // démarrer : la note disparaîtrait purement et simplement.
+      final suite = surHauteurs([60, 60, 62]).deroule(articulation: 1.05);
+      expect(suite[0].fin, 1.0, reason: 'coupée net sur la suivante');
+      expect(suite[1].fin, closeTo(2.05, 1e-12), reason: 'hauteur différente');
+    });
+
+    test('la garde ne raccourcit rien quand les notes ne se recouvrent pas',
+        () {
+      final suite = surHauteurs([60, 60]).deroule(articulation: 0.9);
+      expect(suite[0].fin, closeTo(0.9, 1e-12));
+    });
+
+    test('la durée sonore n\'est jamais nulle, même au plus piqué', () {
+      final suite = surHauteurs([60, 60]).deroule(articulation: 0.25);
+      for (final s in suite) {
+        expect(s.fin, greaterThan(s.debut));
+      }
+    });
+  });
 }
