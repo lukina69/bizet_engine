@@ -19,6 +19,7 @@ library;
 
 export 'src/model/armure.dart';
 export 'src/model/balancement.dart';
+export 'src/model/bourdon.dart';
 export 'src/model/compagnons.dart';
 export 'src/model/epaisseur.dart';
 export 'src/model/melodie.dart';

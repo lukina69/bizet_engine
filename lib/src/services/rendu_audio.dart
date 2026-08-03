@@ -1,6 +1,7 @@
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
 import '../model/balancement.dart';
+import '../model/bourdon.dart';
 import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
@@ -126,6 +127,11 @@ class RenduAudio {
       _preparerCanal(synth, voix.canal, voix.programme, reverberation);
     }
 
+    // Le bourdon vient en dernier, avec sa sonorité à lui.
+    for (final voix in reglages.voixBourdon(melodie)) {
+      _preparerCanal(synth, voix.canal, Bourdon.programme, reverberation);
+    }
+
     final List<_Evenement> evenements = _evenements(melodie, reglages);
 
     // Le modèle exprime les durées en temps (1.0 = une noire).
@@ -217,6 +223,10 @@ class RenduAudio {
   /// durent aussi longtemps que la note d'origine, articulation et balancement
   /// compris, sinon les voix se désynchroniseraient. [compagnons] ajoute de
   /// même les voix à l'unisson.
+  ///
+  /// Le bourdon, lui, ignore tout cela : une note tenue du premier temps au
+  /// dernier, que ni le piqué, ni le balancement, ni le rubato ne concernent —
+  /// c'est même ce qui le définit, l'immobile sous le mouvant.
   List<_Evenement> _evenements(Melodie melodie, Reglages reglages) {
     final Balancement balancement = reglages.balancement;
     final Epaisseur epaisseur = reglages.epaisseur;
@@ -236,6 +246,14 @@ class RenduAudio {
             _Evenement(debut, true, voix.hauteur, voix.canal, voix.velocite));
         liste.add(_Evenement(fin, false, voix.hauteur, voix.canal, 0));
       }
+    }
+
+    final double dureeMesures =
+        melodie.mesures.fold(0.0, (somme, m) => somme + m.dureeEffective);
+    for (final voix in reglages.voixBourdon(melodie)) {
+      liste.add(_Evenement(0.0, true, voix.hauteur, voix.canal,
+          Bourdon.velocite));
+      liste.add(_Evenement(dureeMesures, false, voix.hauteur, voix.canal, 0));
     }
 
     // À instant égal, on éteint avant d'allumer : deux notes de même hauteur
