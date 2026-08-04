@@ -3,7 +3,6 @@ import 'bourdon.dart';
 import 'compagnons.dart';
 import 'epaisseur.dart';
 import 'melodie.dart';
-import 'reverberation.dart';
 import 'rubato.dart';
 
 /// Tout ce qui sépare une partition du son qu'on entend.
@@ -37,9 +36,6 @@ class Reglages {
   /// Le balancement, et sur quelle paire de notes il porte.
   final Balancement balancement;
 
-  /// Le lieu où le morceau semble joué.
-  final Reverberation reverberation;
-
   /// Les doublages qui donnent du corps à la mélodie.
   final Epaisseur epaisseur;
 
@@ -64,13 +60,21 @@ class Reglages {
     this.majeur,
     this.articulation = 1.0,
     this.balancement = const Balancement(),
-    this.reverberation = Reverberation.salon,
     this.epaisseur = Epaisseur.simple,
     this.compagnons = Compagnons.aucun,
     this.bourdon = Bourdon.aucun,
     this.rubato = Rubato.mecanique,
     this.graine = 0,
   });
+
+  /// Les compagnons calés sur ce morceau : chaque voix ajoutée prend le
+  /// décalage d'octave qui la met dans sa bonne tessiture, pour ces
+  /// hauteurs-là. À calculer sur la mélodie **telle qu'elle est jouée**
+  /// (après [applique]) : le compagnon suit le morceau quand on le déplace.
+  Compagnons compagnonsCales(Melodie melodie) => compagnons.calesSur([
+        for (final mesure in melodie.mesures)
+          for (final note in mesure.notes) note.hauteur,
+      ]);
 
   /// Premier canal MIDI libre après la mélodie, ses doublages et ses
   /// compagnons : celui où le bourdon s'installe.

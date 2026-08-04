@@ -32,9 +32,6 @@ class ExportMusical {
   /// l'épaisseur sont donc écrites comme de vraies notes, sur leur propre
   /// canal, et celles des compagnons gardent en plus leur propre sonorité. Le
   /// fichier est moins « propre » à réutiliser, c'est un compromis assumé.
-  ///
-  /// La réverbération n'a pas d'équivalent en MIDI : c'est le seul réglage que
-  /// le fichier ne peut pas emporter.
   Uint8List versMidi(
     Melodie partition, {
     Reglages reglages = const Reglages(),
@@ -121,7 +118,7 @@ class ExportMusical {
   List<_Evenement> _evenements(Melodie melodie, Reglages reglages) {
     final Balancement balancement = reglages.balancement;
     final Epaisseur epaisseur = reglages.epaisseur;
-    final Compagnons compagnons = reglages.compagnons;
+    final Compagnons compagnons = reglages.compagnonsCales(melodie);
 
     final List<_Evenement> liste = [];
 

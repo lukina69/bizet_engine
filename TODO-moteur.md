@@ -122,3 +122,14 @@ Le code du moteur est négligeable ; le SoundFont fait tout le poids (17 Mo pour
 quelques instruments — le piano est de loin le plus lourd. Prévoir à terme un
 mode « MIDI seul », sans synthèse : `ExportMusical.versMidi()` est déjà dans le
 paquet et n'a besoin d'aucun SoundFont.
+
+---
+
+## 8. Table d'instruments et compatibilité — FAIT (4 août 2026)
+
+`lib/src/instruments/` : le catalogue des 20 sonorités de Bizet_v3.sf2
+(tessiture musicale, enveloppe, famille) et la règle de compatibilité
+(`evaluer`, `evaluerContre`), source de vérité unique pour le grisage des
+octaves, l'épaisseur et les suggestions d'associations. Les tessitures sont
+des valeurs de départ à ajuster à l'oreille ; les tests épinglent des
+verdicts, pas des seuils.

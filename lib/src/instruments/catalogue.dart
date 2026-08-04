@@ -1,0 +1,161 @@
+import 'instrument.dart';
+
+/// Les instruments de la banque embarquée (Bizet_v3.sf2), dans l'ordre des
+/// numéros de programme. Source de vérité unique : le grisage des octaves,
+/// l'épaisseur et les suggestions d'associations lisent tous cette table.
+///
+/// Les tessitures sont **musicales**, posées de départ et à ajuster à
+/// l'oreille — pas les plages de samples du fichier, qui sont étirées sur
+/// tout le clavier. Les deux seuls vrais plafonds relevés dans la banque
+/// (contrebasse : 81, tuba : 72) sont respectés.
+const List<Instrument> catalogue = [
+  Instrument(
+      programme: 4,
+      nom: 'Tine Electric Piano',
+      noteMin: 28,
+      noteMax: 88,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.clavierElectrique),
+  Instrument(
+      programme: 5,
+      nom: 'FM Electric Piano',
+      noteMin: 28,
+      noteMax: 96,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.clavierElectrique),
+  Instrument(
+      programme: 6,
+      nom: 'Harpsichord',
+      noteMin: 29,
+      noteMax: 89,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.clavecin),
+  Instrument(
+      programme: 8,
+      nom: 'Celesta',
+      noteMin: 48,
+      noteMax: 96,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.metallophone),
+  Instrument(
+      programme: 10,
+      nom: 'Music Box',
+      noteMin: 72,
+      noteMax: 96,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.metallophone),
+  Instrument(
+      programme: 12,
+      nom: 'Marimba',
+      noteMin: 36,
+      noteMax: 96,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.percussionBois),
+  Instrument(
+      programme: 14,
+      nom: 'Tubular Bells',
+      noteMin: 60,
+      noteMax: 77,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.metallophone),
+  Instrument(
+      programme: 24,
+      nom: 'Nylon String Guitar',
+      noteMin: 40,
+      noteMax: 83,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.pince),
+  Instrument(
+      programme: 28,
+      nom: 'Palm Muted Guitar',
+      noteMin: 40,
+      noteMax: 84,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.pince),
+  Instrument(
+      programme: 32,
+      nom: 'Acoustic Bass',
+      noteMin: 28,
+      noteMax: 55,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.pince),
+  Instrument(
+      programme: 40,
+      nom: 'Violin',
+      noteMin: 55,
+      noteMax: 93,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.frotte),
+  Instrument(
+      programme: 42,
+      nom: 'Cello',
+      noteMin: 36,
+      noteMax: 81,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.frotte),
+  Instrument(
+      programme: 43,
+      nom: 'Contrabass',
+      noteMin: 28,
+      noteMax: 55,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.frotte),
+  Instrument(
+      programme: 44,
+      nom: 'Strings Tremolo',
+      noteMin: 36,
+      noteMax: 96,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.frotte),
+  Instrument(
+      programme: 45,
+      nom: 'Strings Pizzicato',
+      noteMin: 36,
+      noteMax: 93,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.pince),
+  Instrument(
+      programme: 46,
+      nom: 'Harp',
+      noteMin: 24,
+      noteMax: 103,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.harpe),
+  Instrument(
+      programme: 56,
+      nom: 'Trumpet',
+      noteMin: 52,
+      noteMax: 82,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.cuivre),
+  Instrument(
+      programme: 58,
+      nom: 'Tuba',
+      noteMin: 28,
+      noteMax: 65,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.cuivre),
+  Instrument(
+      programme: 73,
+      nom: 'Flute',
+      noteMin: 60,
+      noteMax: 96,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.bois),
+  Instrument(
+      programme: 104,
+      nom: 'Sitar',
+      noteMin: 48,
+      noteMax: 84,
+      enveloppe: Enveloppe.resonant,
+      famille: Famille.pince),
+];
+
+/// L'instrument portant ce numéro de programme, ou nul s'il n'est pas dans la
+/// banque. Recherche linéaire : vingt entrées, aucune importance.
+Instrument? instrumentParProgramme(int programme) {
+  for (final Instrument i in catalogue) {
+    if (i.programme == programme) return i;
+  }
+  return null;
+}

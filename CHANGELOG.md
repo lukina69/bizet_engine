@@ -6,7 +6,7 @@ Première version : extraction du cœur musical de Bizet, sans changement de
 comportement.
 
 - Modèle musical : `Note`, `Mesure`, `Melodie`, `Armure`, `Balancement`,
-  `Epaisseur`, `Reverberation`.
+  `Epaisseur`.
 - Lecture de partitions LilyPond : `LilypondParser`.
 - Rendu sonore par SoundFont : `RenduAudio`.
 - Export MIDI et WAV : `ExportMusical`.

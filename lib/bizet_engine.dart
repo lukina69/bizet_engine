@@ -17,6 +17,9 @@
 /// de ses octets, jamais d'un chemin d'asset.
 library;
 
+export 'src/instruments/catalogue.dart';
+export 'src/instruments/compatibilite.dart';
+export 'src/instruments/instrument.dart';
 export 'src/model/armure.dart';
 export 'src/model/balancement.dart';
 export 'src/model/bourdon.dart';
@@ -26,7 +29,6 @@ export 'src/model/melodie.dart';
 export 'src/model/mesure.dart';
 export 'src/model/note.dart';
 export 'src/model/reglages.dart';
-export 'src/model/reverberation.dart';
 export 'src/model/rubato.dart';
 export 'src/services/export_musical.dart';
 export 'src/services/lilypond_parser.dart';

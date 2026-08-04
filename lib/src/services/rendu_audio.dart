@@ -6,7 +6,6 @@ import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
 import '../model/reglages.dart';
-import '../model/reverberation.dart';
 
 /// Fabrique le son d'une [Melodie] : la mélodie entre, une forme d'onde (PCM)
 /// en sort.
@@ -59,6 +58,8 @@ class RenduAudio {
         sampleRate: frequence,
         blockSize: 64,
         maximumPolyphony: 64,
+        // La légère réverbération par défaut du synthétiseur : c'est le son
+        // que Bizet a toujours eu, ce n'est pas un réglage exposé.
         enableReverbAndChorus: true,
       ),
     );
@@ -101,7 +102,7 @@ class RenduAudio {
   ///
   /// Les [reglages] disent tout de la façon de jouer la partition : à quel
   /// tempo, dans quel mode, à quelle hauteur, avec quelle sonorité, quel
-  /// piqué, quel balancement, quel lieu et quels doublages.
+  /// piqué, quel balancement et quels doublages.
   ArrayInt16 rendre(
     Melodie partition, {
     Reglages reglages = const Reglages(),
@@ -109,27 +110,26 @@ class RenduAudio {
     final Melodie melodie = reglages.applique(partition);
     final Epaisseur epaisseur = reglages.epaisseur;
     final Compagnons compagnons = reglages.compagnons;
-    final Reverberation reverberation = reglages.reverberation;
 
     final Synthesizer synth = _synth!;
     synth.reset();
 
     // Chaque voix de l'épaisseur a son propre canal : tous doivent recevoir
     // les mêmes réglages, sans quoi les doublages sonneraient d'un autre
-    // instrument, dans un autre lieu et à une autre hauteur.
+    // instrument et à une autre hauteur.
     for (int canal = 0; canal < epaisseur.canaux; canal++) {
-      _preparerCanal(synth, canal, melodie.instrumentMidi, reverberation);
+      _preparerCanal(synth, canal, melodie.instrumentMidi);
     }
 
     // Les compagnons prennent les canaux suivants : c'est justement parce
     // qu'ils sont à part qu'ils peuvent porter un autre timbre.
     for (final voix in compagnons.canaux(epaisseur.canaux)) {
-      _preparerCanal(synth, voix.canal, voix.programme, reverberation);
+      _preparerCanal(synth, voix.canal, voix.programme);
     }
 
     // Le bourdon vient en dernier, avec sa sonorité à lui.
     for (final voix in reglages.voixBourdon(melodie)) {
-      _preparerCanal(synth, voix.canal, Bourdon.programme, reverberation);
+      _preparerCanal(synth, voix.canal, Bourdon.programme);
     }
 
     final List<_Evenement> evenements = _evenements(melodie, reglages);
@@ -180,22 +180,12 @@ class RenduAudio {
     return tampon;
   }
 
-  /// Installe un canal MIDI : son lieu et sa sonorité.
+  /// Installe un canal MIDI : sa sonorité.
   void _preparerCanal(
     Synthesizer synth,
     int canal,
     int programme,
-    Reverberation reverberation,
   ) {
-    // La dose de réverbération — reset() vient de la remettre au salon par
-    // défaut, on la cale sur le lieu choisi.
-    synth.processMidiMessage(
-      channel: canal,
-      command: 0xB0, // controller
-      data1: 0x5B, // reverb send
-      data2: reverberation.envoi,
-    );
-
     // Attention : selectPreset() attend un INDICE dans la liste des
     // instruments du fichier .sf2, pas un numéro de programme General MIDI.
     // Comme Melodie.instrumentMidi est bien un numéro GM, on envoie
@@ -230,7 +220,7 @@ class RenduAudio {
   List<_Evenement> _evenements(Melodie melodie, Reglages reglages) {
     final Balancement balancement = reglages.balancement;
     final Epaisseur epaisseur = reglages.epaisseur;
-    final Compagnons compagnons = reglages.compagnons;
+    final Compagnons compagnons = reglages.compagnonsCales(melodie);
 
     final List<_Evenement> liste = [];
 

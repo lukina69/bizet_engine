@@ -17,7 +17,7 @@ paramètres légèrement différents à chaque cycle.
 |---|---|
 | `LilypondParser` | lit un fichier `.ly` et en fait une `Melodie` |
 | `Melodie`, `Mesure`, `Note`, `Armure` | le modèle musical, et ses transformations : transposition, bascule majeur/mineur, découpe |
-| `Balancement`, `Epaisseur`, `Reverberation` | les réglages d'interprétation |
+| `Balancement`, `Epaisseur` | les réglages d'interprétation |
 | `RenduAudio` | fabrique le son du morceau (PCM 16 bits mono) à partir d'un SoundFont |
 | `ExportMusical` | écrit un fichier MIDI ou WAV |
 
@@ -49,7 +49,7 @@ void main() {
       File('banque.sf2').readAsBytesSync().buffer.asByteData(),
     );
 
-  final son = rendu.rendre(variante, reverberation: Reverberation.eglise);
+  final son = rendu.rendre(variante);
   File('sortie.wav').writeAsBytesSync(ExportMusical().versWav(son));
 }
 ```

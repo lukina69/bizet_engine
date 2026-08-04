@@ -1,11 +1,17 @@
-/// Un ou deux instruments qui doublent la mélodie **à l'unisson**, pour
-/// enrichir le timbre d'un morceau qui n'a qu'une voix.
+import '../instruments/catalogue.dart';
+import '../instruments/instrument.dart';
+
+/// Un ou deux instruments qui doublent la mélodie, pour enrichir le timbre
+/// d'un morceau qui n'a qu'une voix.
 ///
 /// Là où [Epaisseur] ajoute des hauteurs (octave, quinte) du même instrument,
 /// les compagnons ajoutent des couleurs : la même note jouée en même temps par
 /// une flûte et une guitare ne sonne ni comme l'une, ni comme l'autre. C'est
 /// un réglage de restitution, comme le tempo — la mélodie elle-même n'est
 /// jamais modifiée.
+///
+/// Chaque voix joue à l'unisson **à l'octave près** : une flûte qui double un
+/// violoncelle monte d'elle-même là où elle sonne bien (voir [calesSur]).
 class Compagnons {
   /// Nombre de voix ajoutables. Deux suffisent : au-delà, l'oreille n'entend
   /// plus des timbres distincts mais une bouillie.
@@ -17,7 +23,13 @@ class Compagnons {
   /// pas le second au milieu d'un morceau.
   final List<int?> rangs;
 
-  const Compagnons._(this.rangs);
+  /// Décalage de chaque voix, en octaves. Toujours nul à la construction :
+  /// ce n'est pas un réglage de l'utilisateur mais un calage sur le morceau,
+  /// posé par [calesSur] juste avant de jouer ou d'exporter — il n'est donc
+  /// jamais enregistré dans le fichier de travail.
+  final List<int> decalages;
+
+  const Compagnons._(this.rangs, [this.decalages = const [0, 0]]);
 
   /// La mélodie seule, sans voix ajoutée.
   static const Compagnons aucun = Compagnons._([null, null]);
@@ -58,7 +70,8 @@ class Compagnons {
             (canal: premierCanal + i, programme: programme),
       ];
 
-  /// Les voix à faire sonner pour une note donnée, à la même hauteur qu'elle.
+  /// Les voix à faire sonner pour une note donnée : la même hauteur qu'elle,
+  /// au décalage d'octave de chaque voix près.
   List<({int canal, int hauteur, int velocite})> voix(
     int hauteur,
     int premierCanal,
@@ -68,10 +81,46 @@ class Compagnons {
           if (rangs[i] != null)
             (
               canal: premierCanal + i,
-              hauteur: hauteur,
+              hauteur: hauteur + 12 * decalages[i],
               velocite: _velocites[i],
             ),
       ];
+
+  /// Les mêmes voix, calées sur un morceau : chacune se décale d'octave(s)
+  /// si les [hauteurs] jouées tombent mal dans sa tessiture. Une flûte qui
+  /// double une ligne de violoncelle monte, un tuba qui double une ligne de
+  /// flûte descend — sans réglage : la tessiture vient du catalogue.
+  ///
+  /// Le décalage vaut pour le morceau entier, jamais note à note : une voix
+  /// qui sauterait d'octave en cours de route casserait le dessin de la
+  /// mélodie.
+  Compagnons calesSur(List<int> hauteurs) => Compagnons._(rangs, [
+        for (final int? programme in rangs)
+          switch (programme == null ? null : instrumentParProgramme(programme)) {
+            null => 0,
+            final Instrument voix => _decalagePour(voix, hauteurs),
+          },
+      ]);
+
+  /// Le décalage qui ramène le plus de notes dans la tessiture de [voix].
+  /// À égalité, le plus sobre gagne — zéro d'abord, puis une octave avant
+  /// deux : dès que le morceau tient dans la tessiture, on ne s'éloigne pas
+  /// de la mélodie pour un mieux imaginaire.
+  static int _decalagePour(Instrument voix, List<int> hauteurs) {
+    int meilleur = 0;
+    int plusDedans = -1;
+    for (final int octave in const [0, -1, 1, -2, 2]) {
+      int dedans = 0;
+      for (final int h in hauteurs) {
+        if (voix.contient(h + 12 * octave)) dedans++;
+      }
+      if (dedans > plusDedans) {
+        meilleur = octave;
+        plusDedans = dedans;
+      }
+    }
+    return meilleur;
+  }
 
   List<int?> toJson() => List<int?>.of(rangs);
 
