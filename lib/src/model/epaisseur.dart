@@ -22,9 +22,16 @@ enum Epaisseur {
 
   const Epaisseur(this.doublages);
 
+  /// Vélocité de base de la mélodie. 80, et non 100 ou 127 : la norme
+  /// SoundFont relie la vélocité à la brillance de chaque note (filtre
+  /// passe-bas), et une vélocité haute en permanence joue tout dans le
+  /// timbre le plus agressif des échantillons — le son métallique. À 80,
+  /// le corps reste, la dureté part.
+  static const int velociteBase = 80;
+
   /// Vélocité de chaque voix. Les doublages restent en retrait, sinon la
   /// mélodie principale se noie dans la bouillie.
-  static const List<int> _velocites = [100, 70, 55];
+  static const List<int> _velocites = [velociteBase, 70, 55];
 
   /// Ambitus au-delà duquel un doublage n'a plus d'intérêt musical : les
   /// bornes d'un clavier de piano, la0 et do8. Une voix qui en sortirait est

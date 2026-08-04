@@ -23,6 +23,8 @@ enum Famille {
   frotte,
   bois,
   cuivre,
+  orgue,
+  voix,
 }
 
 /// Où vit le gros de la tessiture. Dérivé du centre, jamais stocké.

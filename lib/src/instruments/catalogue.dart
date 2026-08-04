@@ -1,26 +1,23 @@
 import 'instrument.dart';
 
-/// Les instruments de la banque embarquée (Bizet_v3.sf2), dans l'ordre des
+/// Les instruments de la banque embarquée (Bizet_v4.sf2), dans l'ordre des
 /// numéros de programme. Source de vérité unique : le grisage des octaves,
 /// l'épaisseur et les suggestions d'associations lisent tous cette table.
 ///
+/// La palette est équilibrée à dessein : dix sons résonants, dix entretenus.
+/// La liste précédente penchait à quinze contre cinq, et ce déséquilibre
+/// sonnait métallique quoi qu'on règle par ailleurs.
+///
 /// Les tessitures sont **musicales**, posées de départ et à ajuster à
 /// l'oreille — pas les plages de samples du fichier, qui sont étirées sur
-/// tout le clavier. Les deux seuls vrais plafonds relevés dans la banque
-/// (contrebasse : 81, tuba : 72) sont respectés.
+/// tout le clavier. Les vrais plafonds relevés dans la banque (tuba : 72 ;
+/// orgue, chœur et cors : 96) sont respectés.
 const List<Instrument> catalogue = [
   Instrument(
       programme: 4,
       nom: 'Tine Electric Piano',
       noteMin: 28,
       noteMax: 88,
-      enveloppe: Enveloppe.resonant,
-      famille: Famille.clavierElectrique),
-  Instrument(
-      programme: 5,
-      nom: 'FM Electric Piano',
-      noteMin: 28,
-      noteMax: 96,
       enveloppe: Enveloppe.resonant,
       famille: Famille.clavierElectrique),
   Instrument(
@@ -52,24 +49,17 @@ const List<Instrument> catalogue = [
       enveloppe: Enveloppe.resonant,
       famille: Famille.percussionBois),
   Instrument(
-      programme: 14,
-      nom: 'Tubular Bells',
-      noteMin: 60,
-      noteMax: 77,
-      enveloppe: Enveloppe.resonant,
-      famille: Famille.metallophone),
+      programme: 19,
+      nom: 'Church Organ',
+      noteMin: 36,
+      noteMax: 96,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.orgue),
   Instrument(
       programme: 24,
       nom: 'Nylon String Guitar',
       noteMin: 40,
       noteMax: 83,
-      enveloppe: Enveloppe.resonant,
-      famille: Famille.pince),
-  Instrument(
-      programme: 28,
-      nom: 'Palm Muted Guitar',
-      noteMin: 40,
-      noteMax: 84,
       enveloppe: Enveloppe.resonant,
       famille: Famille.pince),
   Instrument(
@@ -94,20 +84,6 @@ const List<Instrument> catalogue = [
       enveloppe: Enveloppe.entretenu,
       famille: Famille.frotte),
   Instrument(
-      programme: 43,
-      nom: 'Contrabass',
-      noteMin: 28,
-      noteMax: 55,
-      enveloppe: Enveloppe.entretenu,
-      famille: Famille.frotte),
-  Instrument(
-      programme: 44,
-      nom: 'Strings Tremolo',
-      noteMin: 36,
-      noteMax: 96,
-      enveloppe: Enveloppe.entretenu,
-      famille: Famille.frotte),
-  Instrument(
       programme: 45,
       nom: 'Strings Pizzicato',
       noteMin: 36,
@@ -122,6 +98,20 @@ const List<Instrument> catalogue = [
       enveloppe: Enveloppe.resonant,
       famille: Famille.harpe),
   Instrument(
+      programme: 48,
+      nom: 'Strings Fast',
+      noteMin: 36,
+      noteMax: 96,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.frotte),
+  Instrument(
+      programme: 52,
+      nom: 'Choir Aahs',
+      noteMin: 43,
+      noteMax: 84,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.voix),
+  Instrument(
       programme: 56,
       nom: 'Trumpet',
       noteMin: 52,
@@ -135,6 +125,20 @@ const List<Instrument> catalogue = [
       noteMax: 65,
       enveloppe: Enveloppe.entretenu,
       famille: Famille.cuivre),
+  Instrument(
+      programme: 60,
+      nom: 'French Horns',
+      noteMin: 34,
+      noteMax: 77,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.cuivre),
+  Instrument(
+      programme: 71,
+      nom: 'Clarinet',
+      noteMin: 50,
+      noteMax: 91,
+      enveloppe: Enveloppe.entretenu,
+      famille: Famille.bois),
   Instrument(
       programme: 73,
       nom: 'Flute',

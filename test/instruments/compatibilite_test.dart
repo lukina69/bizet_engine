@@ -34,11 +34,11 @@ void main() {
       // Célesta + boîte à musique : la boîte à musique vit entièrement dans
       // la tessiture du célesta.
       expect(evaluer(par(8), par(10)), Compatibilite.inattendu);
-      // Violon + cordes trémolo : des cordes frottées sur des cordes
+      // Violon + cordes d'ensemble : des cordes frottées sur des cordes
       // frottées.
-      expect(evaluer(par(40), par(44)), Compatibilite.inattendu);
-      // Contrebasse jazz + contrebasse à l'archet : deux graves.
-      expect(evaluer(par(32), par(43)), Compatibilite.inattendu);
+      expect(evaluer(par(40), par(48)), Compatibilite.inattendu);
+      // Contrebasse jazz + tuba : deux graves.
+      expect(evaluer(par(32), par(58)), Compatibilite.inattendu);
       // Tuba + boîte à musique : aucune note en commun.
       expect(evaluer(par(58), par(10)), Compatibilite.inattendu);
     });
