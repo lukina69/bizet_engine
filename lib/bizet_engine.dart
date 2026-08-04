@@ -22,7 +22,6 @@ export 'src/instruments/compatibilite.dart';
 export 'src/instruments/instrument.dart';
 export 'src/model/armure.dart';
 export 'src/model/balancement.dart';
-export 'src/model/bourdon.dart';
 export 'src/model/compagnons.dart';
 export 'src/model/epaisseur.dart';
 export 'src/model/melodie.dart';

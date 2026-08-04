@@ -1,5 +1,4 @@
 import 'balancement.dart';
-import 'bourdon.dart';
 import 'compagnons.dart';
 import 'epaisseur.dart';
 import 'melodie.dart';
@@ -42,9 +41,6 @@ class Reglages {
   /// Les instruments qui doublent la mélodie à l'unisson.
   final Compagnons compagnons;
 
-  /// La note tenue sous la mélodie, du premier temps au dernier.
-  final Bourdon bourdon;
-
   /// La liberté de placement dans le temps : ce qui fait qu'on entend
   /// quelqu'un jouer plutôt qu'une machine.
   final Rubato rubato;
@@ -62,7 +58,6 @@ class Reglages {
     this.balancement = const Balancement(),
     this.epaisseur = Epaisseur.simple,
     this.compagnons = Compagnons.aucun,
-    this.bourdon = Bourdon.aucun,
     this.rubato = Rubato.mecanique,
     this.graine = 0,
   });
@@ -75,32 +70,6 @@ class Reglages {
         for (final mesure in melodie.mesures)
           for (final note in mesure.notes) note.hauteur,
       ]);
-
-  /// Premier canal MIDI libre après la mélodie, ses doublages et ses
-  /// compagnons : celui où le bourdon s'installe.
-  int canalBourdon(Melodie melodie) =>
-      epaisseur.canaux + compagnons.canaux(epaisseur.canaux).length;
-
-  /// Les voix tenues du bourdon pour ce morceau, chacune sur son canal.
-  ///
-  /// Vide si le réglage est à l'arrêt, si l'armure manque — sans tonique, pas
-  /// de bourdon — ou si le morceau n'a pas de note. La hauteur se cale sous la
-  /// note la plus grave **telle qu'elle est jouée** : le bourdon suit le
-  /// morceau quand on le descend d'une octave.
-  List<({int canal, int hauteur})> voixBourdon(Melodie melodie) {
-    final int? tonique = melodie.armure?.tonique;
-
-    int? plusBasse;
-    for (final mesure in melodie.mesures) {
-      for (final note in mesure.notes) {
-        if (plusBasse == null || note.hauteur < plusBasse) {
-          plusBasse = note.hauteur;
-        }
-      }
-    }
-
-    return bourdon.voix(tonique, plusBasse, canalBourdon(melodie));
-  }
 
   /// Les notes à faire sonner : le rythme écrit, dévié par le rubato, puis
   /// articulé. C'est le seul endroit où ces deux-là se composent, et l'ordre

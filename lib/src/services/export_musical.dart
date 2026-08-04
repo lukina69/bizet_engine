@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart' show ArrayInt16;
 
 import '../model/balancement.dart';
-import '../model/bourdon.dart';
 import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
@@ -58,11 +57,6 @@ class ExportMusical {
     // Les compagnons, eux, ont chacun le leur, sur les canaux suivants.
     for (final voix in compagnons.canaux(epaisseur.canaux)) {
       piste.addAll([0x00, 0xC0 | voix.canal, voix.programme & 0x7F]);
-    }
-
-    // Et le bourdon en dernier, avec sa sonorité à lui.
-    for (final voix in reglages.voixBourdon(melodie)) {
-      piste.addAll([0x00, 0xC0 | voix.canal, Bourdon.programme & 0x7F]);
     }
 
     int precedent = 0;
@@ -136,17 +130,6 @@ class ExportMusical {
             ticDebut, true, voix.hauteur, voix.canal, voix.velocite));
         liste.add(_Evenement(ticFin, false, voix.hauteur, voix.canal, 0));
       }
-    }
-
-    // Le bourdon tient du premier temps au dernier, hors de portée du piqué,
-    // du balancement et du rubato : l'immobile sous le mouvant.
-    final double dureeMesures =
-        melodie.mesures.fold(0.0, (somme, m) => somme + m.dureeEffective);
-    for (final voix in reglages.voixBourdon(melodie)) {
-      liste.add(_Evenement(0, true, voix.hauteur, voix.canal,
-          Bourdon.velocite));
-      liste.add(_Evenement((dureeMesures * ticsParNoire).round(), false,
-          voix.hauteur, voix.canal, 0));
     }
 
     liste.sort((a, b) {
