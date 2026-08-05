@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../instruments/catalogue.dart';
 import '../instruments/instrument.dart';
 
@@ -29,7 +31,12 @@ class Compagnons {
   /// jamais enregistré dans le fichier de travail.
   final List<int> decalages;
 
-  const Compagnons._(this.rangs, [this.decalages = const [0, 0]]);
+  /// Vélocité de chaque voix, une fois égalisée par [equilibresSous]. Comme
+  /// les décalages : un calage de jeu, jamais enregistré.
+  final List<int> velocites;
+
+  const Compagnons._(this.rangs,
+      [this.decalages = const [0, 0], this.velocites = _velocites]);
 
   /// La mélodie seule, sans voix ajoutée.
   static const Compagnons aucun = Compagnons._([null, null]);
@@ -82,9 +89,51 @@ class Compagnons {
             (
               canal: premierCanal + i,
               hauteur: hauteur + 12 * decalages[i],
-              velocite: _velocites[i],
+              velocite: velocites[i],
             ),
       ];
+
+  /// Les mêmes voix, égalisées sous l'instrument [programmeMelodie] : à
+  /// vélocité égale, les sonorités de la banque ne pèsent pas pareil — 22 dB
+  /// séparent le tuba de la boîte à musique. Chaque voix compense l'écart de
+  /// poids naturel entre elle et la mélodie, si bien que l'accompagnement se
+  /// place toujours au même retrait perçu, quel que soit le couple
+  /// d'instruments. Deux sonorités de même poids : rien ne change.
+  ///
+  /// [presence] est la main gardée par l'utilisateur par-dessus cette
+  /// égalisation : des crans de 4 dB, négatifs vers le discret, positifs
+  /// vers l'en-avant. Zéro laisse l'équilibre automatique tel quel.
+  Compagnons equilibresSous(int programmeMelodie, {int presence = 0}) {
+    final Instrument? melodie = instrumentParProgramme(programmeMelodie);
+
+    return Compagnons._(rangs, decalages, [
+      for (int i = 0; i < maximum; i++)
+        _velociteEqualisee(velocites[i], melodie,
+            rangs[i] == null ? null : instrumentParProgramme(rangs[i]!),
+            presence),
+    ]);
+  }
+
+  /// dB par cran de présence : deux crans font 8 dB, un vrai geste sans
+  /// jamais devenir brutal.
+  static const double _dbParCran = 4.0;
+
+  static int _velociteEqualisee(
+    int velocite,
+    Instrument? melodie,
+    Instrument? voix,
+    int presence,
+  ) {
+    double db = presence * _dbParCran;
+    // L'égalisation ne sait rien corriger sans les deux poids ; la présence,
+    // elle, s'applique toujours.
+    if (melodie != null && voix != null) {
+      db += melodie.poidsNaturel - voix.poidsNaturel;
+    }
+    // L'amplitude suit à peu près le carré de la vélocité : un écart de
+    // D dB se compense par un facteur 10^(D/40).
+    return (velocite * math.pow(10, db / 40)).round().clamp(1, 127);
+  }
 
   /// Les mêmes voix, calées sur un morceau : chacune se décale d'octave(s)
   /// si les [hauteurs] jouées tombent mal dans sa tessiture. Une flûte qui
@@ -94,13 +143,18 @@ class Compagnons {
   /// Le décalage vaut pour le morceau entier, jamais note à note : une voix
   /// qui sauterait d'octave en cours de route casserait le dessin de la
   /// mélodie.
-  Compagnons calesSur(List<int> hauteurs) => Compagnons._(rangs, [
-        for (final int? programme in rangs)
-          switch (programme == null ? null : instrumentParProgramme(programme)) {
-            null => 0,
-            final Instrument voix => _decalagePour(voix, hauteurs),
-          },
-      ]);
+  Compagnons calesSur(List<int> hauteurs) => Compagnons._(
+        rangs,
+        [
+          for (final int? programme in rangs)
+            switch (
+                programme == null ? null : instrumentParProgramme(programme)) {
+              null => 0,
+              final Instrument voix => _decalagePour(voix, hauteurs),
+            },
+        ],
+        velocites,
+      );
 
   /// Le décalage qui ramène le plus de notes dans la tessiture de [voix].
   /// À égalité, le plus sobre gagne — zéro d'abord, puis une octave avant

@@ -47,6 +47,71 @@ void main() {
     });
   });
 
+  group('equilibresSous : l\'accompagnement au même retrait perçu', () {
+    test('deux sonorités de même poids : rien ne change', () {
+      // Violon et trompette pèsent pareil dans la banque.
+      final Compagnons egalises = Compagnons([56, null]).equilibresSous(40);
+      expect(egalises.voix(60, 1).single.velocite, 60);
+    });
+
+    test('un compagnon fort sous une mélodie douce se calme', () {
+      // Le tuba (0 dB) sous la boîte à musique (-21,8 dB) : sans égalisation
+      // il l'écraserait quatorze fois.
+      final Compagnons egalises = Compagnons([58, null]).equilibresSous(10);
+      expect(egalises.voix(60, 1).single.velocite, lessThan(25));
+    });
+
+    test('un compagnon doux sous une mélodie forte s\'affirme', () {
+      // La boîte à musique sous le tuba : elle monte, dans la limite du
+      // possible.
+      final Compagnons egalises = Compagnons([10, null]).equilibresSous(58);
+      expect(egalises.voix(60, 1).single.velocite, greaterThan(100));
+    });
+
+    test('une sonorité hors catalogue reste à sa vélocité', () {
+      expect(Compagnons([99, null]).equilibresSous(40).voix(60, 1).single
+          .velocite, 60);
+      expect(Compagnons([73, null]).equilibresSous(99).voix(60, 1).single
+          .velocite, 60, reason: 'mélodie inconnue : on ne devine pas');
+    });
+
+    test('la présence garde la main par-dessus l\'équilibre', () {
+      // Violon et trompette pèsent pareil : à zéro rien ne bouge, et chaque
+      // cran de 4 dB pousse ou retient la voix ajoutée.
+      final Compagnons voix = Compagnons([56, null]);
+      final int equilibre =
+          voix.equilibresSous(40).voix(60, 1).single.velocite;
+      final int discret =
+          voix.equilibresSous(40, presence: -2).voix(60, 1).single.velocite;
+      final int enAvant =
+          voix.equilibresSous(40, presence: 2).voix(60, 1).single.velocite;
+
+      expect(equilibre, 60);
+      expect(discret, lessThan(equilibre));
+      expect(enAvant, greaterThan(equilibre));
+      // Seize dB d'écart entre les deux extrêmes : un rapport de 2,5
+      // en vélocité (10^(16/40)).
+      expect(enAvant / discret, closeTo(2.51, 0.15));
+    });
+
+    test('la présence s\'applique même sans poids connus', () {
+      final Compagnons voix = Compagnons([99, null]);
+      expect(voix.equilibresSous(98, presence: 2).voix(60, 1).single.velocite,
+          greaterThan(60),
+          reason: 'l\'égalisation ne sait rien, la main de l\'utilisateur si');
+    });
+
+    test('l\'égalisation n\'écrase pas le calage d\'octave', () {
+      // Flûte sur ligne grave : elle monte d'une octave ET s'égalise.
+      final Compagnons cales =
+          Compagnons([73, null]).calesSur([48, 52, 55]).equilibresSous(58);
+      expect(cales.decalages, [1, 0]);
+      expect(cales.voix(48, 1).single.hauteur, 60);
+      expect(cales.voix(48, 1).single.velocite, greaterThan(60),
+          reason: 'la flûte s\'affirme sous le tuba');
+    });
+  });
+
   test('le calage est un état de jeu, pas un réglage : il ne s\'enregistre pas',
       () {
     final Compagnons cales = Compagnons([73, null]).calesSur([48, 52]);

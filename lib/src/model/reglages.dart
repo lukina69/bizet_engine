@@ -42,6 +42,10 @@ class Reglages {
   /// Les instruments qui doublent la mélodie à l'unisson.
   final Compagnons compagnons;
 
+  /// La présence de l'accompagnement, en crans de 4 dB autour de l'équilibre
+  /// automatique (zéro) : négatif vers le discret, positif vers l'en-avant.
+  final int accompagnement;
+
   /// La liberté de placement dans le temps : ce qui fait qu'on entend
   /// quelqu'un jouer plutôt qu'une machine.
   final Rubato rubato;
@@ -63,19 +67,21 @@ class Reglages {
     this.balancement = const Balancement(),
     this.epaisseur = Epaisseur.simple,
     this.compagnons = Compagnons.aucun,
+    this.accompagnement = 0,
     this.rubato = Rubato.mecanique,
     this.nuances = Nuances.uniformes,
     this.graine = 0,
   });
 
   /// Les compagnons calés sur ce morceau : chaque voix ajoutée prend le
-  /// décalage d'octave qui la met dans sa bonne tessiture, pour ces
-  /// hauteurs-là. À calculer sur la mélodie **telle qu'elle est jouée**
-  /// (après [applique]) : le compagnon suit le morceau quand on le déplace.
+  /// décalage d'octave qui la met dans sa bonne tessiture, et la vélocité
+  /// qui l'égalise sous l'instrument de la mélodie. À calculer sur la
+  /// mélodie **telle qu'elle est jouée** (après [applique]) : le compagnon
+  /// suit le morceau quand on le déplace ou qu'on change sa sonorité.
   Compagnons compagnonsCales(Melodie melodie) => compagnons.calesSur([
         for (final mesure in melodie.mesures)
           for (final note in mesure.notes) note.hauteur,
-      ]);
+      ]).equilibresSous(melodie.instrumentMidi, presence: accompagnement);
 
   /// L'écart de vélocité de chaque note, dans l'ordre de [notesSonnantes] :
   /// accent métrique et marche de poids. Les voix d'une même note — mélodie,

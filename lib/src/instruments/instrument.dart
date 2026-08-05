@@ -51,6 +51,13 @@ class Instrument {
   final Enveloppe enveloppe;
   final Famille famille;
 
+  /// Poids naturel de la sonorité, en dB, relatif à la plus forte de la
+  /// banque (le tuba : 0). À vélocité égale, les presets ne pèsent pas
+  /// pareil — 22 dB séparent le tuba de la boîte à musique — et c'est lui
+  /// qui permet d'égaliser les voix ajoutées. Mesuré par
+  /// `tool/mesure_poids.dart` : à refaire à chaque nouvelle banque.
+  final double poidsNaturel;
+
   const Instrument({
     required this.programme,
     required this.nom,
@@ -58,6 +65,7 @@ class Instrument {
     required this.noteMax,
     required this.enveloppe,
     required this.famille,
+    required this.poidsNaturel,
   });
 
   int get centre => (noteMin + noteMax) ~/ 2;
