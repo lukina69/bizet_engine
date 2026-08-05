@@ -81,7 +81,7 @@ class Reglages {
     Melodie melodie,
   ) {
     final List<({double debut, double fin, int hauteur})> ecrites =
-        melodie.deroule();
+        melodie.deroule(respiration: false);
 
     return melodie.deroule(
       articulation: articulation,

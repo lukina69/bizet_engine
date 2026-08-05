@@ -156,18 +156,84 @@ void main() {
       expect(suite.first.fin, greaterThan(suite.last.debut));
     });
 
-    test('deux fois la même hauteur : la première s\'arrête bord à bord', () {
-      // Sinon la fin de la première éteindrait la seconde, qui vient de
-      // démarrer : la note disparaîtrait purement et simplement.
+    test('deux fois la même hauteur : la première laisse une respiration', () {
+      // D'abord parce que sa fin éteindrait la seconde, qui vient de
+      // démarrer ; ensuite parce que deux frappes collées se fondent en une
+      // seule note tenue — les répétitions du Danube ont disparu comme ça.
       final suite = surHauteurs([60, 60, 62]).deroule(articulation: 1.05);
-      expect(suite[0].fin, 1.0, reason: 'coupée net sur la suivante');
+      expect(suite[0].fin, closeTo(0.9, 1e-12),
+          reason: 'coupée un dixième de temps avant la suivante');
       expect(suite[1].fin, closeTo(2.05, 1e-12), reason: 'hauteur différente');
     });
 
-    test('la garde ne raccourcit rien quand les notes ne se recouvrent pas',
+    test('même sans lié, une répétition ne se colle pas bord à bord', () {
+      // C'est le cas du Danube : les notes répétées sont écrites l'une
+      // contre l'autre, et l'articulation n'y change rien.
+      final suite = surHauteurs([60, 60]).deroule();
+      expect(suite[0].fin, closeTo(0.9, 1e-12));
+      expect(suite[1].fin, 2.0, reason: 'la dernière va au bout');
+    });
+
+    test('la respiration est plafonnée : une ronde n\'y perd qu\'un souffle',
         () {
+      final m = Melodie(
+        titre: '',
+        source: '',
+        tempo: 120,
+        instrumentMidi: 0,
+        mesures: [
+          for (int i = 0; i < 2; i++)
+            Mesure(
+              notes: [Note(hauteur: 60, duree: 4.0, position: 0.0)],
+              duree: 4.0,
+            ),
+        ],
+      );
+      final suite = m.deroule();
+      expect(suite[0].fin, closeTo(3.9, 1e-12),
+          reason: 'un dixième de temps, pas un dixième de la ronde');
+    });
+
+    test('la garde ne raccourcit rien quand la respiration existe déjà', () {
       final suite = surHauteurs([60, 60]).deroule(articulation: 0.9);
       expect(suite[0].fin, closeTo(0.9, 1e-12));
+    });
+
+    test('la garde voit aussi les répétitions séparées par d\'autres notes',
+        () {
+      // Voix fusionnées : la mélodie tient un do pendant que l'accompagnement
+      // s'intercale, puis refrappe le même do. Les deux frappes ne sont pas
+      // voisines dans la liste — c'est le cas du Danube, cent neuf fois.
+      final m = Melodie(
+        titre: '',
+        source: '',
+        tempo: 120,
+        instrumentMidi: 0,
+        mesures: [
+          Mesure(
+            notes: [
+              Note(hauteur: 60, duree: 2.0, position: 0.0),
+              Note(hauteur: 64, duree: 1.0, position: 1.0),
+              Note(hauteur: 60, duree: 1.0, position: 2.0),
+            ],
+            duree: 3.0,
+          ),
+        ],
+      );
+
+      final suite = m.deroule(articulation: 1.05);
+      expect(suite[0].fin, closeTo(1.9, 1e-12),
+          reason: 'le premier do respire avant le second, mi entre eux ou pas');
+      expect(suite[1].fin, closeTo(2.05, 1e-12),
+          reason: 'le mi, seul de sa hauteur, garde son lié');
+    });
+
+    test('la partition écrite se lit sans la respiration', () {
+      // C'est elle que lit le calcul du rubato : une coupure technique n'est
+      // ni un silence ni une fin de phrase, le jeu ne doit pas se mettre à
+      // respirer après chaque note répétée.
+      final suite = surHauteurs([60, 60]).deroule(respiration: false);
+      expect(suite[0].fin, 1.0, reason: 'bord à bord, comme écrit');
     });
 
     test('la durée sonore n\'est jamais nulle, même au plus piqué', () {

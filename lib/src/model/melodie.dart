@@ -78,17 +78,26 @@ class Melodie {
   /// [articulation] multiplie la durée sonore sans toucher au rythme : la note
   /// suivante démarre toujours à l'heure, seul le silence qui la précède
   /// s'allonge. Au-delà de 1,0 les notes se recouvrent, et c'est ce qui fait un
-  /// vrai lié — sauf quand la même hauteur revient juste après : là, la fin de
-  /// la première éteindrait la seconde, puisqu'une hauteur ne peut sonner
-  /// qu'une fois à la fois sur un canal. Dans ce cas seulement, la note est
-  /// rendue bord à bord avec sa suivante.
+  /// vrai lié — sauf quand la même hauteur revient juste après. Là, deux
+  /// raisons de couper court : la fin de la première éteindrait la seconde,
+  /// puisqu'une hauteur ne peut sonner qu'une fois à la fois sur un canal ;
+  /// et même sans ce piège, deux frappes collées se fondent en une seule
+  /// note tenue dès que l'attaque est douce — le Danube y a perdu ses
+  /// répétitions. Une répétition ne se lie donc jamais : elle garde une
+  /// respiration ([_respirationRepetition]).
   ///
   /// [ecarts] déplace le début et la fin écrits de chaque note — c'est par là
   /// que passe le rubato. Le piqué s'applique **ensuite**, sur le rythme ainsi
   /// dévié : une note qu'on étire s'entend plus longtemps, piquée ou liée.
+  ///
+  /// [respiration] ne se coupe que pour lire la partition **écrite** — c'est
+  /// ce que fait le calcul du rubato : une coupure technique de quelques
+  /// centièmes n'est ni un silence ni une fin de phrase, et le jeu ne doit
+  /// pas se mettre à respirer après chaque note répétée.
   List<({double debut, double fin, int hauteur})> deroule({
     double articulation = 1.0,
     List<({double debut, double fin})> ecarts = const [],
+    bool respiration = true,
   }) {
     final List<({double debut, double fin, int hauteur})> suite = [];
     double debutMesure = 0.0;
@@ -112,20 +121,52 @@ class Melodie {
       debutMesure += mesure.dureeEffective;
     }
 
-    for (int i = 0; i < suite.length - 1; i++) {
-      final suivante = suite[i + 1];
-      if (suivante.hauteur == suite[i].hauteur &&
-          suite[i].fin > suivante.debut) {
-        suite[i] = (
-          debut: suite[i].debut,
-          fin: suivante.debut,
-          hauteur: suite[i].hauteur,
-        );
+    // La garde travaille **par hauteur**, pas par voisinage de liste : dans
+    // un morceau à voix fusionnées, mélodie et accompagnement s'intercalent,
+    // et deux frappes d'une même hauteur peuvent être séparées par d'autres
+    // notes dans le fil — le Danube en compte cent neuf comme ça, ses
+    // accords répétés y perdaient leurs notes.
+    final Map<int, List<int>> parHauteur = {};
+    for (int i = 0; i < suite.length; i++) {
+      parHauteur.putIfAbsent(suite[i].hauteur, () => []).add(i);
+    }
+
+    for (final List<int> indices in parHauteur.values) {
+      indices.sort((a, b) => suite[a].debut.compareTo(suite[b].debut));
+
+      for (int k = 0; k < indices.length - 1; k++) {
+        final int i = indices[k];
+        final suivante = suite[indices[k + 1]];
+
+        final double intervalle = suivante.debut - suite[i].debut;
+        // Deux frappes au même instant (voix fusionnées) : bord à bord, il
+        // n'y a pas de chemin où respirer.
+        final double coupure = !respiration || intervalle <= 0
+            ? 0.0
+            : (_respirationRepetition * intervalle)
+                .clamp(0.0, _respirationRepetition);
+
+        final double finMax = suivante.debut - coupure;
+        if (suite[i].fin > finMax) {
+          suite[i] = (
+            debut: suite[i].debut,
+            fin: finMax,
+            hauteur: suite[i].hauteur,
+          );
+        }
       }
     }
 
     return suite;
   }
+
+  /// La respiration de répétition : le silence gardé entre deux frappes
+  /// d'une même hauteur — un dixième du chemin qui les sépare, plafonné à
+  /// un dixième de temps pour qu'une note longue n'y perde qu'un souffle.
+  /// Un pianiste ne lie jamais une répétition ; sans cette coupure, les
+  /// « pam-pam » d'une valse se fondent en notes tenues. Valeur de départ,
+  /// à caler à l'oreille.
+  static const double _respirationRepetition = 0.1;
 
   /// Transposition globale du morceau de [intervalle] demi-tons.
   Melodie transposee(int intervalle) => Melodie(
