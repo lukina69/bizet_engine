@@ -214,16 +214,22 @@ class RenduAudio {
 
     final List<_Evenement> liste = [];
 
+    // Le poids de chaque note, aligné sur l'ordre des notes sonnantes.
+    final List<int> nuances = reglages.deltasNuances(melodie);
+    int rang = 0;
+
     for (final sonnante in reglages.notesSonnantes(melodie)) {
       final double debut = balancement.applique(sonnante.debut);
       final double fin = balancement.applique(sonnante.fin);
+      final int poids = rang < nuances.length ? nuances[rang] : 0;
+      rang++;
 
       for (final voix in [
         ...epaisseur.voix(sonnante.hauteur),
         ...compagnons.voix(sonnante.hauteur, epaisseur.canaux),
       ]) {
-        liste.add(
-            _Evenement(debut, true, voix.hauteur, voix.canal, voix.velocite));
+        liste.add(_Evenement(debut, true, voix.hauteur, voix.canal,
+            (voix.velocite + poids).clamp(1, 127)));
         liste.add(_Evenement(fin, false, voix.hauteur, voix.canal, 0));
       }
     }

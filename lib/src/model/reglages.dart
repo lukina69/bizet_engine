@@ -2,6 +2,7 @@ import 'balancement.dart';
 import 'compagnons.dart';
 import 'epaisseur.dart';
 import 'melodie.dart';
+import 'nuances.dart';
 import 'rubato.dart';
 
 /// Tout ce qui sépare une partition du son qu'on entend.
@@ -45,6 +46,10 @@ class Reglages {
   /// quelqu'un jouer plutôt qu'une machine.
   final Rubato rubato;
 
+  /// Le poids de chaque note : l'autre moitié du geste humain — le rubato
+  /// fait vivre le temps, les nuances font vivre la force.
+  final Nuances nuances;
+
   /// De quoi rejouer exactement le même rubato. Deux graines différentes font
   /// respirer le morceau à des endroits différents, tous justifiés.
   final int graine;
@@ -59,6 +64,7 @@ class Reglages {
     this.epaisseur = Epaisseur.simple,
     this.compagnons = Compagnons.aucun,
     this.rubato = Rubato.mecanique,
+    this.nuances = Nuances.uniformes,
     this.graine = 0,
   });
 
@@ -70,6 +76,19 @@ class Reglages {
         for (final mesure in melodie.mesures)
           for (final note in mesure.notes) note.hauteur,
       ]);
+
+  /// L'écart de vélocité de chaque note, dans l'ordre de [notesSonnantes] :
+  /// accent métrique et marche de poids. Les voix d'une même note — mélodie,
+  /// doublages, compagnons — le reçoivent toutes : c'est le geste entier qui
+  /// s'appuie, pas un timbre isolé.
+  List<int> deltasNuances(Melodie melodie) => calculerNuances(
+        melodie,
+        intensite: nuances,
+        graine: graine,
+        // Une seule variante pour l'instant, comme pour le rubato : l'appli
+        // ne compte pas les tours de boucle.
+        indexCycle: 0,
+      );
 
   /// Les notes à faire sonner : le rythme écrit, dévié par le rubato, puis
   /// articulé. C'est le seul endroit où ces deux-là se composent, et l'ordre
