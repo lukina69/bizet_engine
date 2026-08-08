@@ -73,6 +73,22 @@ class Reglages {
     this.graine = 0,
   });
 
+  /// Ce que devient le curseur d'articulation une fois passé au moteur : un
+  /// multiplicateur de la durée écrite, du plus piqué (0) au lié (100).
+  ///
+  /// Il ne descend jamais à zéro — la note serait muette — et dépasse
+  /// légèrement 1,0 en haut de course, sans quoi le « lié » laisserait un
+  /// blanc entre deux notes au lieu de les enchaîner.
+  ///
+  /// La conversion vit ici, et non dans l'écran qui porte le curseur : le
+  /// tirage de `bizet_scene` en a besoin lui aussi, et deux barèmes feraient
+  /// sonner différemment un même pourcentage.
+  static double articulationDepuisCran(int cran) =>
+      _gatePique + (_gateLie - _gatePique) * (cran.clamp(0, 100) / 100);
+
+  static const double _gatePique = 0.25;
+  static const double _gateLie = 1.05;
+
   /// Les compagnons calés sur ce morceau : chaque voix ajoutée prend le
   /// décalage d'octave qui la met dans sa bonne tessiture, et la vélocité
   /// qui l'égalise sous l'instrument de la mélodie. À calculer sur la

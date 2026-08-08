@@ -31,6 +31,7 @@ export 'src/model/nuances.dart';
 export 'src/model/recette.dart';
 export 'src/model/reglages.dart';
 export 'src/model/rubato.dart';
+export 'src/model/tirage.dart';
 export 'src/services/export_musical.dart';
 export 'src/services/lilypond_parser.dart';
 export 'src/services/rendu_audio.dart';

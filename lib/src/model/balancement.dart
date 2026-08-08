@@ -74,6 +74,19 @@ class Balancement {
 
   const Balancement([this.swing = Swing.droit, this.fenetre = 1.0]);
 
+  /// La paire que balance un morceau dont les notes vont à cette [pulsation] :
+  /// deux fois celle-ci. Balancer des croches dans un morceau écrit en noires
+  /// ne s'entendrait pas, faute de note entre les temps. Bornée pour rester
+  /// musicale — on ne balance ni des rondes, ni des quadruples croches.
+  static double fenetrePour(double pulsation) =>
+      (pulsation * 2).clamp(0.5, 2.0);
+
+  /// Faux quand le balancement n'aurait aucune prise : quand la pulsation est
+  /// aussi longue que la fenêtre — un morceau en blanches, ou plus lent —,
+  /// toutes les notes tombent sur un début de paire et rien ne bougerait.
+  static bool sEntendSur(double pulsation) =>
+      pulsation < fenetrePour(pulsation);
+
   bool get estDroit => swing == Swing.droit;
 
   /// Où tombe la note faible dans la fenêtre : au milieu quand c'est droit,
