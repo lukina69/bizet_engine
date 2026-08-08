@@ -28,6 +28,7 @@ export 'src/model/melodie.dart';
 export 'src/model/mesure.dart';
 export 'src/model/note.dart';
 export 'src/model/nuances.dart';
+export 'src/model/recette.dart';
 export 'src/model/reglages.dart';
 export 'src/model/rubato.dart';
 export 'src/services/export_musical.dart';
