@@ -44,9 +44,18 @@ class BanqueReduite {
     return BanqueReduite._(source, programmes, noteMin, noteMax, frequence);
   }
 
-  /// La qualité retenue par défaut : la moitié de la qualité CD. Au-delà, on
-  /// paie du brillant que la musique de fond d'un jeu n'exploite pas.
-  static const int frequenceParDefaut = 22050;
+  /// La qualité retenue par défaut, **calée à l'oreille** par Ludo le 9 août
+  /// 2026 sur le même tirage rendu à cinq qualités.
+  ///
+  /// Son verdict : aucune différence audible jusqu'à 16 000 Hz sur de bonnes
+  /// enceintes de salon, ni sur le téléphone ; à 11 025 Hz seulement, quelques
+  /// détails commencent à manquer dans les aigus. 16 000 Hz garde donc une
+  /// marge — il coupe à 8 kHz, juste au-dessus de ce qui s'est entendu.
+  ///
+  /// Ne pas remonter cette valeur « par prudence » sans réécouter : elle vaut
+  /// 500 ko sur une recette de trois instruments, et elle a été gagnée par
+  /// une écoute, pas par un calcul.
+  static const int frequenceParDefaut = 16000;
 
   BanqueReduite._(
     this._source,

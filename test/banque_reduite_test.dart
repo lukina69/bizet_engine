@@ -63,16 +63,29 @@ void main() {
       expect(reduite.ecrire().lengthInBytes, reduite.octets);
     });
 
-    test('descendre à 22 kHz divise encore par deux, ou presque', () {
-      final int pleine = BanqueReduite.pour(source,
-              programmes: _trois, frequence: 48000)
-          .octets;
-      final int reduite =
-          BanqueReduite.pour(source, programmes: _trois, frequence: 22050)
+    test('baisser la fréquence allège, et de plus en plus', () {
+      // 48 000 Hz : au-dessus de tout ce que la banque contient, donc rien
+      // n'est rééchantillonné — c'est la référence.
+      int a(int frequence) =>
+          BanqueReduite.pour(source, programmes: _trois, frequence: frequence)
               .octets;
 
-      expect(reduite, lessThan(pleine));
-      expect(reduite, greaterThan(pleine ~/ 3));
+      final int pleine = a(48000);
+      expect(a(22050), lessThan(pleine));
+      expect(a(16000), lessThan(a(22050)));
+      expect(a(11025), lessThan(a(16000)));
+    });
+
+    test('la qualité par défaut est celle calée à l\'oreille', () {
+      expect(BanqueReduite.frequenceParDefaut, 16000);
+
+      final BanqueReduite parDefaut =
+          BanqueReduite.pour(source, programmes: _trois);
+      expect(
+        parDefaut.octets,
+        BanqueReduite.pour(source, programmes: _trois, frequence: 16000)
+            .octets,
+      );
     });
 
     test('les sonorités absentes de la banque sont signalées', () {
