@@ -28,17 +28,23 @@ class Boucle {
   /// La façon dont ce tour-ci le joue.
   final Reglages reglages;
 
+  /// La finesse à laquelle ce son a été fabriqué. L'hôte en a besoin pour
+  /// le jouer à la bonne vitesse : une scène peut rendre moins fin que la
+  /// qualité du disque compact, pour aller plus vite.
+  final int frequence;
+
   const Boucle({
     required this.son,
     required this.partition,
     required this.reglages,
+    required this.frequence,
   });
 
   /// Nombre d'échantillons du tour, queue comprise.
   int get echantillons => son.bytes.lengthInBytes ~/ 2;
 
   /// Durée du tour en secondes, queue comprise.
-  double get secondes => echantillons / Scene.frequence;
+  double get secondes => echantillons / frequence;
 }
 
 /// La scène : l'endroit où le morceau se joue pour de vrai.
@@ -73,7 +79,12 @@ class Scene {
     required this.recette,
     required ByteData soundFont,
     int? graine,
-  }) {
+    int frequenceRendu = frequence,
+    bool reverberation = true,
+  }) : _rendu = RenduAudio(
+          frequenceRendu: frequenceRendu,
+          reverberation: reverberation,
+        ) {
     _rendu.chargerSoundFont(soundFont);
     _tirage = Tirage(
       recette,
@@ -90,18 +101,25 @@ class Scene {
     String recette, {
     required ByteData soundFont,
     int? graine,
+    int frequenceRendu = frequence,
+    bool reverberation = true,
   }) =>
       Scene(
         recette:
             Recette.fromJson(jsonDecode(recette) as Map<String, dynamic>),
         soundFont: soundFont,
         graine: graine,
+        frequenceRendu: frequenceRendu,
+        reverberation: reverberation,
       );
 
   final Recette recette;
 
-  final RenduAudio _rendu = RenduAudio();
+  final RenduAudio _rendu;
   late final Tirage _tirage;
+
+  /// La finesse à laquelle cette scène fabrique son son.
+  int get frequenceRendu => _rendu.frequenceRendu;
 
   /// Les sonorités que la banque livrée sait vraiment jouer. C'est ce que
   /// vaut « tous » dans une recette en mode libre.
@@ -117,6 +135,7 @@ class Scene {
       son: _rendu.rendre(tour.partition, reglages: tour.reglages),
       partition: tour.partition,
       reglages: tour.reglages,
+      frequence: _rendu.frequenceRendu,
     );
   }
 }

@@ -14,7 +14,24 @@ import '../model/reglages.dart';
 /// dans l'application hôte, parce qu'elle dépend de la plateforme. Ici, rien
 /// ne dépend de Flutter : le rendu tourne aussi bien en ligne de commande.
 class RenduAudio {
+  /// La qualité de rendu de l'application : celle du disque compact.
   static const int frequence = 44100;
+
+  /// [frequenceRendu] est la finesse à laquelle le son est fabriqué. La
+  /// baisser divise d'autant le travail du synthétiseur — un levier de
+  /// premier plan pour un hôte qui doit produire ses boucles vite, d'autant
+  /// que la banque livrée est elle-même échantillonnée bien en dessous.
+  ///
+  /// [reverberation] laisse ou coupe la réverbération et le chorus du
+  /// synthétiseur. C'est le son que Bizet a toujours eu, mais ils se
+  /// calculent sur chaque échantillon.
+  RenduAudio({
+    this.frequenceRendu = frequence,
+    this.reverberation = true,
+  });
+
+  final int frequenceRendu;
+  final bool reverberation;
 
   Synthesizer? _synth;
 
@@ -54,12 +71,10 @@ class RenduAudio {
     _synth = Synthesizer.loadByteData(
       donnees,
       SynthesizerSettings(
-        sampleRate: frequence,
+        sampleRate: frequenceRendu,
         blockSize: 64,
         maximumPolyphony: 64,
-        // La légère réverbération par défaut du synthétiseur : c'est le son
-        // que Bizet a toujours eu, ce n'est pas un réglage exposé.
-        enableReverbAndChorus: true,
+        enableReverbAndChorus: reverberation,
       ),
     );
   }
@@ -139,21 +154,21 @@ class RenduAudio {
     final double dureeMesures =
         melodie.mesures.fold(0.0, (somme, m) => somme + m.dureeEffective);
     _echantillonsMusique =
-        (dureeMesures * secondesParTemps * frequence).ceil();
+        (dureeMesures * secondesParTemps * frequenceRendu).ceil();
 
     // Le tampon va jusqu'au dernier événement (une note peut dépasser sa
     // mesure), plus une seconde de queue pour laisser les notes s'éteindre.
     final double fin =
         dernierTemps > dureeMesures ? dernierTemps : dureeMesures;
     final int total =
-        (fin * secondesParTemps * frequence).ceil() + frequence;
+        (fin * secondesParTemps * frequenceRendu).ceil() + frequenceRendu;
 
     final ArrayInt16 tampon = ArrayInt16.zeros(numShorts: total);
 
     int position = 0;
     for (final _Evenement e in evenements) {
       final int cible =
-          (e.temps * secondesParTemps * frequence).round().clamp(0, total);
+          (e.temps * secondesParTemps * frequenceRendu).round().clamp(0, total);
 
       if (cible > position) {
         synth.renderMonoInt16(tampon, offset: position, length: cible - position);
