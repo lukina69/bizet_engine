@@ -36,3 +36,4 @@ export 'src/services/banque_reduite.dart';
 export 'src/services/export_musical.dart';
 export 'src/services/lilypond_parser.dart';
 export 'src/services/rendu_audio.dart';
+export 'src/services/scene.dart';
