@@ -111,6 +111,12 @@ class RenduAudio {
     return valeurs;
   }
 
+  /// Le rendu par amorce dont la suite n'a pas encore été fabriquée : un
+  /// nouveau rendu qui démarrerait entre-temps reprendrait le synthétiseur,
+  /// et la suite ne vaudrait plus rien. On l'invalide donc, et c'est l'appel
+  /// de la suite qui le dira — plutôt qu'un tampon silencieusement faux.
+  _RenduEnCours? _enAttente;
+
   /// Rend la mélodie complète en PCM (16 bits, mono). Réclame un SoundFont
   /// déjà chargé.
   ///
@@ -121,6 +127,61 @@ class RenduAudio {
     Melodie partition, {
     Reglages reglages = const Reglages(),
   }) {
+    final _RenduEnCours rendu = _preparer(partition, reglages);
+    return rendu.tranche(rendu.total);
+  }
+
+  /// Rend la mélodie en deux temps : d'abord ses [mesuresAmorce] premières
+  /// mesures — l'amorce —, puis le reste au premier appel de `suite`.
+  ///
+  /// C'est le levier du démarrage, mesuré sur appareil : l'amorce coûte
+  /// quelques dizaines de millisecondes là où le tour entier en coûte des
+  /// centaines. Le son peut sortir presque aussitôt, la suite se fabriquant
+  /// pendant qu'il joue.
+  ///
+  /// Même synthétiseur, même suite d'événements : l'amorce suivie de la
+  /// suite donne, à l'échantillon près, le tampon de [rendre]. La suite ne
+  /// se rend qu'une fois, et doit l'être avant tout autre rendu — sinon elle
+  /// lève [StateError], plutôt que de rendre un son qui n'aurait plus rien à
+  /// voir avec son amorce.
+  ({ArrayInt16 amorce, ArrayInt16 Function() suite}) rendreParAmorce(
+    Melodie partition, {
+    Reglages reglages = const Reglages(),
+    int mesuresAmorce = 2,
+  }) {
+    final _RenduEnCours rendu = _preparer(partition, reglages);
+
+    // La coupure tombe à la fin de la dernière mesure de l'amorce : jamais
+    // au milieu d'une note, et la suite reprend exactement là.
+    final double dureeAmorce = rendu.melodie.mesures
+        .take(mesuresAmorce)
+        .fold(0.0, (somme, m) => somme + m.dureeEffective);
+    final int coupure =
+        (dureeAmorce * rendu.secondesParTemps * frequenceRendu)
+            .ceil()
+            .clamp(0, rendu.total);
+
+    final ArrayInt16 amorce = rendu.tranche(coupure);
+    _enAttente = rendu;
+
+    return (
+      amorce: amorce,
+      suite: () {
+        if (_enAttente != rendu) {
+          throw StateError('la suite de cette amorce a déjà été rendue, '
+              'ou un autre rendu est passé derrière elle');
+        }
+        _enAttente = null;
+        return rendu.tranche(rendu.total);
+      },
+    );
+  }
+
+  /// Tout ce qui précède le premier échantillon : la mélodie jouable, les
+  /// canaux installés, les événements triés et le tampon dimensionné.
+  _RenduEnCours _preparer(Melodie partition, Reglages reglages) {
+    _enAttente = null;
+
     final Melodie melodie = reglages.applique(partition);
     final Epaisseur epaisseur = reglages.epaisseur;
     final Compagnons compagnons = reglages.compagnons;
@@ -163,30 +224,14 @@ class RenduAudio {
     final int total =
         (fin * secondesParTemps * frequenceRendu).ceil() + frequenceRendu;
 
-    final ArrayInt16 tampon = ArrayInt16.zeros(numShorts: total);
-
-    int position = 0;
-    for (final _Evenement e in evenements) {
-      final int cible =
-          (e.temps * secondesParTemps * frequenceRendu).round().clamp(0, total);
-
-      if (cible > position) {
-        synth.renderMonoInt16(tampon, offset: position, length: cible - position);
-        position = cible;
-      }
-
-      if (e.debut) {
-        synth.noteOn(channel: e.canal, key: e.hauteur, velocity: e.velocite);
-      } else {
-        synth.noteOff(channel: e.canal, key: e.hauteur);
-      }
-    }
-
-    if (position < total) {
-      synth.renderMonoInt16(tampon, offset: position, length: total - position);
-    }
-
-    return tampon;
+    return _RenduEnCours(
+      synth: synth,
+      melodie: melodie,
+      evenements: evenements,
+      secondesParTemps: secondesParTemps,
+      frequenceRendu: frequenceRendu,
+      total: total,
+    );
   }
 
   /// Installe un canal MIDI : sa sonorité.
@@ -256,6 +301,74 @@ class RenduAudio {
       return parTemps != 0 ? parTemps : (a.debut ? 1 : -1);
     });
     return liste;
+  }
+}
+
+/// Un rendu qui peut s'interrompre et reprendre : le synthétiseur garde son
+/// état d'une tranche à l'autre, si bien que découper ne change pas un
+/// échantillon — une note tenue traverse la coupure, la réverbération aussi.
+class _RenduEnCours {
+  _RenduEnCours({
+    required this.synth,
+    required this.melodie,
+    required this.evenements,
+    required this.secondesParTemps,
+    required this.frequenceRendu,
+    required this.total,
+  });
+
+  final Synthesizer synth;
+  final Melodie melodie;
+  final List<_Evenement> evenements;
+  final double secondesParTemps;
+  final int frequenceRendu;
+
+  /// Longueur du rendu entier, queue comprise, en échantillons.
+  final int total;
+
+  /// Échantillons déjà rendus par les tranches précédentes.
+  int _position = 0;
+
+  /// Rang du prochain événement à jouer.
+  int _prochain = 0;
+
+  /// Rend les échantillons de la position courante jusqu'à [fin] (exclue),
+  /// dans un tampon neuf de cette taille-là.
+  ///
+  /// Un événement qui tombe exactement sur [fin] joue en tête de la tranche
+  /// suivante — au même échantillon que dans un rendu d'un seul bloc.
+  ArrayInt16 tranche(int fin) {
+    final int base = _position;
+    final ArrayInt16 tampon = ArrayInt16.zeros(numShorts: fin - base);
+
+    while (_prochain < evenements.length) {
+      final _Evenement e = evenements[_prochain];
+      final int cible = (e.temps * secondesParTemps * frequenceRendu)
+          .round()
+          .clamp(0, total);
+      if (cible >= fin) break;
+
+      if (cible > _position) {
+        synth.renderMonoInt16(tampon,
+            offset: _position - base, length: cible - _position);
+        _position = cible;
+      }
+
+      if (e.debut) {
+        synth.noteOn(channel: e.canal, key: e.hauteur, velocity: e.velocite);
+      } else {
+        synth.noteOff(channel: e.canal, key: e.hauteur);
+      }
+      _prochain++;
+    }
+
+    if (_position < fin) {
+      synth.renderMonoInt16(tampon,
+          offset: _position - base, length: fin - _position);
+      _position = fin;
+    }
+
+    return tampon;
   }
 }
 

@@ -127,6 +127,56 @@ void main() {
         expect(tours.map((b) => b.reglages.graine).toSet(), hasLength(6));
       });
 
+      test('l\'amorce et sa suite, bout à bout, font le tour entier '
+          'à l\'échantillon près', () {
+        Scene autre() => Scene.depuisJson(
+              _recetteJson(),
+              soundFont: _octetsBanque(),
+              graine: 12,
+            );
+
+        final Boucle entiere = autre().prochaine();
+        final BoucleAmorcee amorcee = autre().prochaineAmorcee();
+
+        // Même graine, donc même tirage : c'est bien le même tour.
+        expect(amorcee.reglages.tempo, entiere.reglages.tempo);
+
+        // L'amorce n'est pas vide, et ne couvre que le début du tour.
+        expect(amorcee.echantillonsAmorce, greaterThan(0));
+        expect(amorcee.echantillonsAmorce, lessThan(entiere.echantillons));
+
+        final suite = amorcee.suite();
+        final int echantillonsSuite = suite.bytes.lengthInBytes ~/ 2;
+        expect(amorcee.echantillonsAmorce + echantillonsSuite,
+            entiere.echantillons);
+
+        // Bout à bout, pas un échantillon ne diffère : une note tenue
+        // traverse la coupure, la réverbération aussi.
+        for (int i = 0; i < amorcee.echantillonsAmorce; i++) {
+          if (amorcee.amorce[i] != entiere.son[i]) {
+            fail('écart dans l\'amorce à l\'échantillon $i');
+          }
+        }
+        for (int i = 0; i < echantillonsSuite; i++) {
+          if (suite[i] != entiere.son[amorcee.echantillonsAmorce + i]) {
+            fail('écart dans la suite à l\'échantillon $i');
+          }
+        }
+      });
+
+      test('la suite ne se rend qu\'une fois, et avant tout autre rendu', () {
+        final BoucleAmorcee premiere = scene.prochaineAmorcee();
+        premiere.suite();
+        expect(premiere.suite, throwsStateError);
+
+        // Un autre rendu passé derrière l'amorce invalide sa suite : le
+        // synthétiseur ne lui appartient plus, mieux vaut une erreur qu'un
+        // son qui n'a plus rien à voir.
+        final BoucleAmorcee abandonnee = scene.prochaineAmorcee();
+        scene.prochaine();
+        expect(abandonnee.suite, throwsStateError);
+      });
+
       test('la même graine rejoue exactement la même suite', () {
         Scene autre() => Scene.depuisJson(
               _recetteJson(),

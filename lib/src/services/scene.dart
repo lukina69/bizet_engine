@@ -47,6 +47,53 @@ class Boucle {
   double get secondes => echantillons / frequence;
 }
 
+/// Un tour de boucle servi en deux temps : l'amorce tout de suite, la suite
+/// pendant qu'elle joue.
+///
+/// C'est ce qui supprime le silence au lancement d'un jeu : l'[amorce] — les
+/// premières mesures — ne coûte que quelques dizaines de millisecondes là où
+/// le tour entier en coûte des centaines. L'hôte la joue sans attendre, et
+/// fabrique la [suite] pendant ce temps-là : mises bout à bout, les deux
+/// tranches sont, à l'échantillon près, la [Boucle] qu'aurait rendue
+/// [Scene.prochaine] — une note tenue traverse la coupure, la réverbération
+/// aussi.
+class BoucleAmorcee {
+  /// Les premières mesures du tour, prêtes à jouer. Sans queue : la musique
+  /// continue dans [suite].
+  final ArrayInt16 amorce;
+
+  final ArrayInt16 Function() _suite;
+
+  /// Le morceau tiré, comme sur [Boucle.partition] — l'attribution Mutopia
+  /// voyage avec.
+  final Melodie partition;
+
+  /// La façon dont ce tour-ci le joue.
+  final Reglages reglages;
+
+  /// La finesse à laquelle ce son est fabriqué.
+  final int frequence;
+
+  BoucleAmorcee({
+    required this.amorce,
+    required ArrayInt16 Function() rendreSuite,
+    required this.partition,
+    required this.reglages,
+    required this.frequence,
+  }) : _suite = rendreSuite;
+
+  /// Le reste du tour, queue comprise, à jouer bout à bout derrière
+  /// l'amorce. Ne se rend qu'une fois, et avant tout autre rendu de la même
+  /// scène — sinon [StateError].
+  ArrayInt16 suite() => _suite();
+
+  /// Nombre d'échantillons de l'amorce seule.
+  int get echantillonsAmorce => amorce.bytes.lengthInBytes ~/ 2;
+
+  /// Durée de l'amorce seule, en secondes.
+  double get secondesAmorce => echantillonsAmorce / frequence;
+}
+
 /// La scène : l'endroit où le morceau se joue pour de vrai.
 ///
 /// C'est le second versant du projet — la partie qu'un autre programme
@@ -133,6 +180,29 @@ class Scene {
       // Le montage est déjà fait : la recette ne porte que les mesures
       // gardées, l'atelier ayant découpé avant d'exporter.
       son: _rendu.rendre(tour.partition, reglages: tour.reglages),
+      partition: tour.partition,
+      reglages: tour.reglages,
+      frequence: _rendu.frequenceRendu,
+    );
+  }
+
+  /// Le même tour que [prochaine], servi en deux temps : l'amorce — les
+  /// [mesuresAmorce] premières mesures — sort presque aussitôt, et l'hôte
+  /// fabrique la suite pendant qu'elle joue.
+  ///
+  /// C'est le geste du premier tour, celui où le joueur attend : les tours
+  /// suivants se préparent tranquillement pendant que le précédent joue, en
+  /// un seul bloc via [prochaine].
+  BoucleAmorcee prochaineAmorcee({int mesuresAmorce = 2}) {
+    final TourDeBoucle tour = _tirage.prochain();
+    final (amorce: amorce, suite: suite) = _rendu.rendreParAmorce(
+      tour.partition,
+      reglages: tour.reglages,
+      mesuresAmorce: mesuresAmorce,
+    );
+    return BoucleAmorcee(
+      amorce: amorce,
+      rendreSuite: suite,
       partition: tour.partition,
       reglages: tour.reglages,
       frequence: _rendu.frequenceRendu,
