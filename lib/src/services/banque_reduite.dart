@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'sf2.dart';
+
 /// Fabrique une banque de sons réduite à ce qu'une recette réclame vraiment.
 ///
 /// Trois leviers, du plus payant au moins payant, mesurés sur `Bizet_v4.sf2`
@@ -40,7 +42,7 @@ class BanqueReduite {
     int noteMax = 127,
     int frequence = frequenceParDefaut,
   }) {
-    final _Sf2 source = _Sf2.lire(sf2);
+    final Sf2 source = Sf2.lire(sf2);
     return BanqueReduite._(source, programmes, noteMin, noteMax, frequence);
   }
 
@@ -67,7 +69,7 @@ class BanqueReduite {
     _choisir();
   }
 
-  final _Sf2 _source;
+  final Sf2 _source;
 
   final Set<int> programmes;
   final int noteMin;
@@ -92,16 +94,19 @@ class BanqueReduite {
   /// Les sonorités réclamées que la banque ne possède pas. Un jeu qui en
   /// demanderait une entendrait le synthétiseur lui substituer autre chose
   /// en silence : mieux vaut le savoir dans l'atelier.
-  late final List<int> manquants = (programmes
-        ..toList())
-      .where((p) => !_source.presets
-          .any((info) => info.banque == 0 && info.programme == p))
-      .toList()
-    ..sort();
+  late final List<int> manquants =
+      (programmes..toList())
+          .where(
+            (p) => !_source.presets.any(
+              (info) => info.banque == 0 && info.programme == p,
+            ),
+          )
+          .toList()
+        ..sort();
 
   void _choisir() {
     for (int p = 0; p < _source.presets.length; p++) {
-      final _PresetInfo info = _source.presets[p];
+      final PresetInfo info = _source.presets[p];
       if (info.banque != 0 || !programmes.contains(info.programme)) continue;
 
       final List<int> zones = [];
@@ -140,7 +145,7 @@ class BanqueReduite {
       return _zonesInstrument[instrument]!.isNotEmpty;
     }
 
-    final _InstrumentInfo info = _source.instruments[instrument];
+    final InstrumentInfo info = _source.instruments[instrument];
     final List<int> zones = [];
     bool sonne = false;
 
@@ -165,7 +170,7 @@ class BanqueReduite {
   }
 
   int _longueurApres(int echantillon) {
-    final _EchantillonInfo e = _source.echantillons[echantillon];
+    final EchantillonInfo e = _source.echantillons[echantillon];
     final int longueur = e.fin - e.debut;
     if (e.frequence <= frequence) return longueur;
     return (longueur * frequence / e.frequence).round();
@@ -178,7 +183,7 @@ class BanqueReduite {
     // norme réclame entre deux échantillons.
     int sons = 0;
     for (final int e in _echantillons) {
-      sons += (_longueurReduite[e]! + _silenceEntreEchantillons) * 2;
+      sons += (_longueurReduite[e]! + silenceEntreEchantillons) * 2;
     }
 
     int zonesPreset = 0;
@@ -202,37 +207,36 @@ class BanqueReduite {
     // L'en-tête RIFF, les trois listes, et les neuf sous-chunks de la
     // dernière — chacun avec son en-tête de huit octets et son
     // enregistrement terminal, celui qui dit où s'arrête le précédent.
-    return _enteteFichier +
-        _tailleInfo +
-        _enteteListe +
-        _enteteChunk +
+    return enteteFichier +
+        tailleInfo +
+        enteteListe +
+        enteteChunk +
         sons +
-        _enteteListe +
-        _enteteChunk +
+        enteteListe +
+        enteteChunk +
         (_presets.length + 1) * 38 +
-        _enteteChunk +
+        enteteChunk +
         (zonesPreset + 1) * 4 +
-        _modulateurVide +
-        _enteteChunk +
+        modulateurVide +
+        enteteChunk +
         (generateursPreset + 1) * 4 +
-        _enteteChunk +
+        enteteChunk +
         (_instruments.length + 1) * 22 +
-        _enteteChunk +
+        enteteChunk +
         (zonesInstrument + 1) * 4 +
-        _modulateurVide +
-        _enteteChunk +
+        modulateurVide +
+        enteteChunk +
         (generateursInstrument + 1) * 4 +
-        _enteteChunk +
+        enteteChunk +
         (_echantillons.length + 1) * 46;
   }
 
   /// Le détail par sonorité : de quoi dire, au moment du choix, ce que
   /// chacune coûte. C'est là que se joue l'arbitrage — un « Strings Fast »
   /// pèse soixante-dix fois une « Music Box ».
-  List<({int programme, String nom, int echantillons, int octets})>
-      get detail {
+  List<({int programme, String nom, int echantillons, int octets})> get detail {
     final List<({int programme, String nom, int echantillons, int octets})>
-        lignes = [];
+    lignes = [];
 
     for (final int p in _presets) {
       final Set<int> vus = {};
@@ -243,7 +247,7 @@ class BanqueReduite {
         for (final int zi in _zonesInstrument[instrument] ?? const <int>[]) {
           final int? e = _source.echantillonDeZoneInstrument(zi);
           if (e == null || !vus.add(e)) continue;
-          poids += (_longueurReduite[e]! + _silenceEntreEchantillons) * 2;
+          poids += (_longueurReduite[e]! + silenceEntreEchantillons) * 2;
         }
       }
       lignes.add((
@@ -261,13 +265,13 @@ class BanqueReduite {
   /// Fabrique la banque réduite. C'est ici que le rééchantillonnage a lieu,
   /// et c'est le seul moment coûteux.
   Uint8List ecrire({String nom = 'Bizet Scene'}) {
-    final _Ecrivain f = _Ecrivain(octets);
+    final EcrivainSf2 f = EcrivainSf2(octets);
 
     f.fourCC('RIFF');
     final int tailleFichier = f.reserverTaille();
     f.fourCC('sfbk');
 
-    _ecrireInfo(f, nom);
+    ecrireInfo(f, nom);
     _ecrireSons(f);
     _ecrireParametres(f);
 
@@ -275,28 +279,7 @@ class BanqueReduite {
     return f.octets();
   }
 
-  void _ecrireInfo(_Ecrivain f, String nom) {
-    f.fourCC('LIST');
-    final int taille = f.reserverTaille();
-    f.fourCC('INFO');
-
-    f.fourCC('ifil');
-    f.entier32(4);
-    f.entier16(2);
-    f.entier16(1);
-
-    f.fourCC('isng');
-    f.entier32(8);
-    f.texte('EMU8000', 8);
-
-    f.fourCC('INAM');
-    f.entier32(32);
-    f.texte(nom, 32);
-
-    f.poserTaille(taille);
-  }
-
-  void _ecrireSons(_Ecrivain f) {
+  void _ecrireSons(EcrivainSf2 f) {
     f.fourCC('LIST');
     final int taille = f.reserverTaille();
     f.fourCC('sdta');
@@ -304,13 +287,13 @@ class BanqueReduite {
     f.fourCC('smpl');
     int total = 0;
     for (final int e in _echantillons) {
-      total += (_longueurReduite[e]! + _silenceEntreEchantillons) * 2;
+      total += (_longueurReduite[e]! + silenceEntreEchantillons) * 2;
     }
     f.entier32(total);
 
     for (final int e in _echantillons) {
       f.points(_reechantillonner(e));
-      f.silence(_silenceEntreEchantillons);
+      f.silence(silenceEntreEchantillons);
     }
 
     f.poserTaille(taille);
@@ -320,7 +303,7 @@ class BanqueReduite {
   /// linéaire. Rien de savant : à ces rapports-là, l'oreille ne distingue
   /// pas une interpolation soignée d'une interpolation droite.
   Int16List _reechantillonner(int echantillon) {
-    final _EchantillonInfo e = _source.echantillons[echantillon];
+    final EchantillonInfo e = _source.echantillons[echantillon];
     final int longueur = e.fin - e.debut;
     final int voulue = _longueurReduite[echantillon]!;
 
@@ -345,7 +328,7 @@ class BanqueReduite {
     return sortie;
   }
 
-  void _ecrireParametres(_Ecrivain f) {
+  void _ecrireParametres(EcrivainSf2 f) {
     f.fourCC('LIST');
     final int taille = f.reserverTaille();
     f.fourCC('pdta');
@@ -360,11 +343,11 @@ class BanqueReduite {
     };
 
     // ---- phdr et ses zones
-    final List<List<_Generateur>> zonesPreset = [];
+    final List<List<Generateur>> zonesPreset = [];
     f.fourCC('phdr');
     f.entier32((_presets.length + 1) * 38);
     for (final int p in _presets) {
-      final _PresetInfo info = _source.presets[p];
+      final PresetInfo info = _source.presets[p];
       f.texte(info.nom, 20);
       f.entier16(info.programme);
       f.entier16(info.banque);
@@ -375,9 +358,9 @@ class BanqueReduite {
 
       for (final int z in _zonesPreset[p]!) {
         zonesPreset.add([
-          for (final _Generateur g in _source.generateursDeZonePreset(z))
-            g.type == _generateurInstrument
-                ? _Generateur(g.type, instrumentVers[g.valeur]!)
+          for (final Generateur g in _source.generateursDeZonePreset(z))
+            g.type == generateurInstrument
+                ? Generateur(g.type, instrumentVers[g.valeur]!)
                 : g,
         ]);
       }
@@ -391,10 +374,10 @@ class BanqueReduite {
     f.entier32(0);
     f.entier32(0);
 
-    _ecrireZones(f, 'pbag', 'pmod', 'pgen', zonesPreset);
+    ecrireZones(f, 'pbag', 'pmod', 'pgen', zonesPreset);
 
     // ---- inst et ses zones
-    final List<List<_Generateur>> zonesInstrument = [];
+    final List<List<Generateur>> zonesInstrument = [];
     f.fourCC('inst');
     f.entier32((_instruments.length + 1) * 22);
     for (final int i in _instruments) {
@@ -403,14 +386,18 @@ class BanqueReduite {
 
       for (final int z in _zonesInstrument[i]!) {
         zonesInstrument.add([
-          for (final _Generateur g in _source.generateursDeZoneInstrument(z))
+          for (final Generateur g in _source.generateursDeZoneInstrument(z))
             switch (g.type) {
-              _generateurEchantillon =>
-                _Generateur(g.type, echantillonVers[g.valeur]!),
+              generateurEchantillon => Generateur(
+                g.type,
+                echantillonVers[g.valeur]!,
+              ),
               // Les décalages d'adresse comptent en points : ils suivent le
               // rééchantillonnage, sans quoi la note démarrerait ailleurs.
-              _ when _estDecalageAdresse(g.type) =>
-                _Generateur(g.type, _decalageReduit(z, g)),
+              _ when estDecalageAdresse(g.type) => Generateur(
+                g.type,
+                _decalageReduit(z, g),
+              ),
               _ => g,
             },
         ]);
@@ -419,23 +406,26 @@ class BanqueReduite {
     f.texte('EOI', 20);
     f.entier16(zonesInstrument.length);
 
-    _ecrireZones(f, 'ibag', 'imod', 'igen', zonesInstrument);
+    ecrireZones(f, 'ibag', 'imod', 'igen', zonesInstrument);
 
     // ---- shdr
     f.fourCC('shdr');
     f.entier32((_echantillons.length + 1) * 46);
     int position = 0;
     for (final int e in _echantillons) {
-      final _EchantillonInfo info = _source.echantillons[e];
+      final EchantillonInfo info = _source.echantillons[e];
       final int longueur = _longueurReduite[e]!;
       final double rapport = longueur / (info.fin - info.debut);
-      final int frequenceFinale =
-          info.frequence <= frequence ? info.frequence : frequence;
+      final int frequenceFinale = info.frequence <= frequence
+          ? info.frequence
+          : frequence;
 
       f.texte(info.nom, 20);
       f.entier32(position);
       f.entier32(position + longueur);
-      f.entier32(position + ((info.debutBoucle - info.debut) * rapport).round());
+      f.entier32(
+        position + ((info.debutBoucle - info.debut) * rapport).round(),
+      );
       f.entier32(position + ((info.finBoucle - info.debut) * rapport).round());
       f.entier32(frequenceFinale);
       f.octet(info.hauteurOrigine);
@@ -444,7 +434,7 @@ class BanqueReduite {
       f.entier16(0);
       f.entier16(1);
 
-      position += longueur + _silenceEntreEchantillons;
+      position += longueur + silenceEntreEchantillons;
     }
     f.texte('EOS', 20);
     for (int i = 0; i < 5; i++) {
@@ -459,10 +449,10 @@ class BanqueReduite {
   }
 
   /// Un décalage d'adresse ramené au nouvel échantillonnage.
-  int _decalageReduit(int zone, _Generateur g) {
+  int _decalageReduit(int zone, Generateur g) {
     final int? e = _source.echantillonDeZoneInstrument(zone);
     if (e == null) return g.valeur;
-    final _EchantillonInfo info = _source.echantillons[e];
+    final EchantillonInfo info = _source.echantillons[e];
     if (info.frequence <= frequence) return g.valeur;
 
     // La valeur est un entier signé sur 16 bits.
@@ -470,502 +460,4 @@ class BanqueReduite {
     final int reduit = (signe * frequence / info.frequence).round();
     return reduit < 0 ? reduit + 0x10000 : reduit;
   }
-
-  void _ecrireZones(
-    _Ecrivain f,
-    String bag,
-    String mod,
-    String gen,
-    List<List<_Generateur>> zones,
-  ) {
-    f.fourCC(bag);
-    f.entier32((zones.length + 1) * 4);
-    int generateurs = 0;
-    for (final List<_Generateur> zone in zones) {
-      f.entier16(generateurs);
-      f.entier16(0);
-      generateurs += zone.length;
-    }
-    f.entier16(generateurs);
-    f.entier16(0);
-
-    // Aucun modulateur : ils ne pèsent rien mais ne servent à rien ici, et
-    // le synthétiseur les ignore déjà.
-    f.fourCC(mod);
-    f.entier32(10);
-    f.entier16(0);
-    f.entier16(0);
-    f.entier16(0);
-    f.entier16(0);
-    f.entier16(0);
-
-    f.fourCC(gen);
-    f.entier32((generateurs + 1) * 4);
-    for (final List<_Generateur> zone in zones) {
-      for (final _Generateur g in zone) {
-        f.entier16(g.type);
-        f.entier16(g.valeur);
-      }
-    }
-    f.entier16(0);
-    f.entier16(0);
-  }
-}
-
-/// La norme réclame de la place perdue entre deux échantillons, pour que
-/// l'interpolation du synthétiseur ne morde pas sur le voisin.
-const int _silenceEntreEchantillons = 46;
-
-/// « RIFF », sa taille, « sfbk ».
-const int _enteteFichier = 12;
-
-/// Le nom d'un chunk et sa taille.
-const int _enteteChunk = 8;
-
-/// Idem, plus le genre de la liste — « sdta », « pdta ».
-const int _enteteListe = 12;
-
-/// La liste INFO telle qu'on l'écrit : version, moteur, nom.
-const int _tailleInfo =
-    _enteteListe + (_enteteChunk + 4) + (_enteteChunk + 8) + (_enteteChunk + 32);
-
-/// Un sous-chunk de modulateurs réduit à son enregistrement terminal.
-const int _modulateurVide = _enteteChunk + 10;
-
-/// Numéros des générateurs SoundFont dont on a besoin.
-const int _generateurAmbitus = 43;
-const int _generateurInstrument = 41;
-const int _generateurEchantillon = 53;
-
-bool _estDecalageAdresse(int type) => type <= 3;
-
-class _Generateur {
-  final int type;
-  final int valeur;
-
-  const _Generateur(this.type, this.valeur);
-}
-
-class _PresetInfo {
-  final String nom;
-  final int programme;
-  final int banque;
-  final int premiereZone;
-  final int derniereZone;
-  final int bibliotheque;
-  final int genre;
-  final int morphologie;
-
-  const _PresetInfo({
-    required this.nom,
-    required this.programme,
-    required this.banque,
-    required this.premiereZone,
-    required this.derniereZone,
-    required this.bibliotheque,
-    required this.genre,
-    required this.morphologie,
-  });
-}
-
-class _InstrumentInfo {
-  final String nom;
-  final int premiereZone;
-  final int derniereZone;
-
-  const _InstrumentInfo(this.nom, this.premiereZone, this.derniereZone);
-}
-
-class _EchantillonInfo {
-  final String nom;
-  final int debut;
-  final int fin;
-  final int debutBoucle;
-  final int finBoucle;
-  final int frequence;
-  final int hauteurOrigine;
-  final int correction;
-
-  const _EchantillonInfo({
-    required this.nom,
-    required this.debut,
-    required this.fin,
-    required this.debutBoucle,
-    required this.finBoucle,
-    required this.frequence,
-    required this.hauteurOrigine,
-    required this.correction,
-  });
-}
-
-/// Un lecteur de SoundFont qui garde les générateurs **tels qu'ils sont
-/// écrits**.
-///
-/// `dart_melty_soundfont` en a bien un, mais il fond aussitôt les zones
-/// globales dans les zones locales et complète les valeurs manquantes par
-/// leurs défauts : de quoi jouer, pas de quoi réécrire. Or réécrire un
-/// fichier à partir de valeurs complétées le ferait sonner autrement — les
-/// générateurs d'un preset s'**ajoutent** à ceux de l'instrument.
-class _Sf2 {
-  _Sf2._({
-    required this._donnees,
-    required this._debutPoints,
-    required this.presets,
-    required this.instruments,
-    required this.echantillons,
-    required this._zonesPreset,
-    required this._zonesInstrument,
-    required this._generateursPreset,
-    required this._generateursInstrument,
-  });
-
-  /// Le fichier d'origine, gardé tel quel : les points sonores ne sont lus
-  /// qu'au moment d'écrire. Les recopier dès la lecture coûterait, sur une
-  /// banque de 30 Mo, quinze millions de valeurs à chaque fois qu'on veut
-  /// simplement afficher un poids.
-  final ByteData _donnees;
-  final int _debutPoints;
-
-  /// Un point sonore du fichier, 16 bits signés.
-  int point(int index) =>
-      _donnees.getInt16(_debutPoints + index * 2, Endian.little);
-
-  final List<_PresetInfo> presets;
-  final List<_InstrumentInfo> instruments;
-  final List<_EchantillonInfo> echantillons;
-
-  /// Pour chaque zone, l'indice de son premier générateur. La liste porte
-  /// une entrée de plus que de zones, qui dit où s'arrête la dernière.
-  final List<int> _zonesPreset;
-  final List<int> _zonesInstrument;
-
-  final List<_Generateur> _generateursPreset;
-  final List<_Generateur> _generateursInstrument;
-
-  List<_Generateur> generateursDeZonePreset(int zone) => _generateursPreset
-      .sublist(_zonesPreset[zone], _zonesPreset[zone + 1]);
-
-  List<_Generateur> generateursDeZoneInstrument(int zone) =>
-      _generateursInstrument.sublist(
-          _zonesInstrument[zone], _zonesInstrument[zone + 1]);
-
-  /// L'instrument que désigne une zone de preset, ou nul s'il s'agit de la
-  /// zone globale — c'est ainsi qu'on les distingue : le générateur
-  /// « instrument » doit être le dernier d'une vraie zone.
-  int? instrumentDeZonePreset(int zone) {
-    final List<_Generateur> g = generateursDeZonePreset(zone);
-    if (g.isEmpty || g.last.type != _generateurInstrument) return null;
-    return g.last.valeur;
-  }
-
-  /// De même pour l'échantillon d'une zone d'instrument.
-  int? echantillonDeZoneInstrument(int zone) {
-    final List<_Generateur> g = generateursDeZoneInstrument(zone);
-    if (g.isEmpty || g.last.type != _generateurEchantillon) return null;
-    return g.last.valeur;
-  }
-
-  (int, int)? ambitusDeZoneInstrument(int zone) {
-    for (final _Generateur g in generateursDeZoneInstrument(zone)) {
-      if (g.type == _generateurAmbitus) {
-        return (g.valeur & 0xFF, (g.valeur >> 8) & 0xFF);
-      }
-    }
-    return null;
-  }
-
-  static _Sf2 lire(ByteData donnees) {
-    final _Lecteur l = _Lecteur(donnees);
-
-    if (l.fourCC() != 'RIFF') throw const FormatException('Pas un RIFF.');
-    l.entier32();
-    if (l.fourCC() != 'sfbk') {
-      throw const FormatException('Pas un SoundFont.');
-    }
-
-    int? debutPoints;
-    List<_PresetInfo>? presets;
-    List<_InstrumentInfo>? instruments;
-    List<_EchantillonInfo>? echantillons;
-    List<int>? zonesPreset;
-    List<int>? zonesInstrument;
-    List<_Generateur>? generateursPreset;
-    List<_Generateur>? generateursInstrument;
-
-    while (!l.fini) {
-      if (l.fourCC() != 'LIST') break;
-      final int taille = l.entier32();
-      final int fin = l.position + taille;
-      final String genre = l.fourCC();
-
-      while (l.position < fin) {
-        final String id = l.fourCC();
-        final int n = l.entier32();
-        final int apres = l.position + n;
-
-        switch (id) {
-          case 'smpl':
-            debutPoints = l.position;
-          case 'phdr':
-            presets = _lirePresets(l, n);
-          case 'pbag':
-            zonesPreset = _lireZones(l, n);
-          case 'pgen':
-            generateursPreset = _lireGenerateurs(l, n);
-          case 'inst':
-            instruments = _lireInstruments(l, n);
-          case 'ibag':
-            zonesInstrument = _lireZones(l, n);
-          case 'igen':
-            generateursInstrument = _lireGenerateurs(l, n);
-          case 'shdr':
-            echantillons = _lireEchantillons(l, n);
-        }
-
-        // Les chunks qu'on ne lit pas — modulateurs, informations, données
-        // 24 bits — sont simplement enjambés.
-        l.aller(apres + (apres.isOdd ? 1 : 0));
-      }
-
-      if (genre.isEmpty) break;
-    }
-
-    if (debutPoints == null ||
-        presets == null ||
-        instruments == null ||
-        echantillons == null ||
-        zonesPreset == null ||
-        zonesInstrument == null ||
-        generateursPreset == null ||
-        generateursInstrument == null) {
-      throw const FormatException('SoundFont incomplet.');
-    }
-
-    return _Sf2._(
-      donnees: donnees,
-      debutPoints: debutPoints,
-      presets: presets,
-      instruments: instruments,
-      echantillons: echantillons,
-      zonesPreset: zonesPreset,
-      zonesInstrument: zonesInstrument,
-      generateursPreset: generateursPreset,
-      generateursInstrument: generateursInstrument,
-    );
-  }
-
-  static List<_PresetInfo> _lirePresets(_Lecteur l, int taille) {
-    final int n = taille ~/ 38;
-    final List<String> noms = [];
-    final List<int> programmes = [];
-    final List<int> banques = [];
-    final List<int> zones = [];
-    final List<int> bibliotheques = [];
-    final List<int> genres = [];
-    final List<int> morphologies = [];
-
-    for (int i = 0; i < n; i++) {
-      noms.add(l.texte(20));
-      programmes.add(l.entier16());
-      banques.add(l.entier16());
-      zones.add(l.entier16());
-      bibliotheques.add(l.entier32());
-      genres.add(l.entier32());
-      morphologies.add(l.entier32());
-    }
-
-    // Le dernier enregistrement n'est qu'un jalon de fin.
-    return [
-      for (int i = 0; i < n - 1; i++)
-        _PresetInfo(
-          nom: noms[i],
-          programme: programmes[i],
-          banque: banques[i],
-          premiereZone: zones[i],
-          derniereZone: zones[i + 1],
-          bibliotheque: bibliotheques[i],
-          genre: genres[i],
-          morphologie: morphologies[i],
-        ),
-    ];
-  }
-
-  static List<_InstrumentInfo> _lireInstruments(_Lecteur l, int taille) {
-    final int n = taille ~/ 22;
-    final List<String> noms = [];
-    final List<int> zones = [];
-
-    for (int i = 0; i < n; i++) {
-      noms.add(l.texte(20));
-      zones.add(l.entier16());
-    }
-
-    return [
-      for (int i = 0; i < n - 1; i++)
-        _InstrumentInfo(noms[i], zones[i], zones[i + 1]),
-    ];
-  }
-
-  /// Les bornes de générateurs de chaque zone : une entrée de plus que de
-  /// zones, la dernière disant où s'arrête la précédente.
-  static List<int> _lireZones(_Lecteur l, int taille) {
-    final int n = taille ~/ 4;
-    final List<int> debuts = [];
-    for (int i = 0; i < n; i++) {
-      debuts.add(l.entier16());
-      l.entier16();
-    }
-    return debuts;
-  }
-
-  static List<_Generateur> _lireGenerateurs(_Lecteur l, int taille) {
-    final int n = taille ~/ 4;
-    return [
-      for (int i = 0; i < n; i++) _Generateur(l.entier16(), l.entier16()),
-    ];
-  }
-
-  static List<_EchantillonInfo> _lireEchantillons(_Lecteur l, int taille) {
-    final int n = taille ~/ 46;
-    final List<_EchantillonInfo> liste = [];
-
-    for (int i = 0; i < n; i++) {
-      final String nom = l.texte(20);
-      final int debut = l.entier32();
-      final int fin = l.entier32();
-      final int debutBoucle = l.entier32();
-      final int finBoucle = l.entier32();
-      final int frequence = l.entier32();
-      final int hauteur = l.octet();
-      final int correction = l.octet();
-      l.entier16();
-      l.entier16();
-
-      liste.add(_EchantillonInfo(
-        nom: nom,
-        debut: debut,
-        fin: fin,
-        debutBoucle: debutBoucle,
-        finBoucle: finBoucle,
-        frequence: frequence,
-        hauteurOrigine: hauteur,
-        correction: correction,
-      ));
-    }
-
-    // Le dernier n'est qu'un jalon de fin.
-    return liste.sublist(0, n - 1);
-  }
-}
-
-/// Lecture d'octets en petit-boutiste, l'ordre du format RIFF.
-class _Lecteur {
-  _Lecteur(this._donnees);
-
-  final ByteData _donnees;
-  int position = 0;
-
-  bool get fini => position >= _donnees.lengthInBytes;
-
-  void aller(int ou) => position = ou;
-
-  int octet() => _donnees.getUint8(position++);
-
-  int entier16() {
-    final int v = _donnees.getUint16(position, Endian.little);
-    position += 2;
-    return v;
-  }
-
-  int entier32() {
-    final int v = _donnees.getInt32(position, Endian.little);
-    position += 4;
-    return v;
-  }
-
-  String fourCC() {
-    final StringBuffer b = StringBuffer();
-    for (int i = 0; i < 4; i++) {
-      b.writeCharCode(octet());
-    }
-    return b.toString();
-  }
-
-  String texte(int longueur) {
-    final StringBuffer b = StringBuffer();
-    for (int i = 0; i < longueur; i++) {
-      final int c = octet();
-      if (c != 0) b.writeCharCode(c);
-    }
-    return b.toString();
-  }
-
-  Int16List points(int combien) {
-    final Int16List liste = Int16List(combien);
-    for (int i = 0; i < combien; i++) {
-      liste[i] = _donnees.getInt16(position + i * 2, Endian.little);
-    }
-    position += combien * 2;
-    return liste;
-  }
-}
-
-/// Écriture d'octets en petit-boutiste, avec de quoi revenir poser la taille
-/// d'un chunk une fois qu'on en connaît la fin.
-class _Ecrivain {
-  _Ecrivain(int taille)
-      : _octets = Uint8List(taille),
-        _vue = ByteData(0) {
-    _vue = ByteData.view(_octets.buffer);
-  }
-
-  final Uint8List _octets;
-  ByteData _vue;
-  int _position = 0;
-
-  Uint8List octets() => Uint8List.sublistView(_octets, 0, _position);
-
-  void octet(int v) => _octets[_position++] = v & 0xFF;
-
-  void entier16(int v) {
-    _vue.setUint16(_position, v & 0xFFFF, Endian.little);
-    _position += 2;
-  }
-
-  void entier32(int v) {
-    _vue.setInt32(_position, v, Endian.little);
-    _position += 4;
-  }
-
-  void fourCC(String s) {
-    for (int i = 0; i < 4; i++) {
-      octet(s.codeUnitAt(i));
-    }
-  }
-
-  void texte(String s, int longueur) {
-    for (int i = 0; i < longueur; i++) {
-      octet(i < s.length ? s.codeUnitAt(i) : 0);
-    }
-  }
-
-  void points(Int16List valeurs) {
-    for (final int v in valeurs) {
-      _vue.setInt16(_position, v, Endian.little);
-      _position += 2;
-    }
-  }
-
-  void silence(int combien) => _position += combien * 2;
-
-  /// Réserve la place d'une taille de chunk et renvoie où elle se trouve.
-  int reserverTaille() {
-    final int ou = _position;
-    _position += 4;
-    return ou;
-  }
-
-  /// Écrit après coup la taille du chunk ouvert à cet endroit.
-  void poserTaille(int ou) =>
-      _vue.setInt32(ou, _position - ou - 4, Endian.little);
 }
