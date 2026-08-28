@@ -20,6 +20,13 @@ import 'sf2.dart';
 /// noté dans [ignores] — de quoi le dire, plutôt que de laisser le
 /// synthétiseur choisir en silence.
 ///
+/// **Les échantillons identiques ne sont gardés qu'une fois**, d'où qu'ils
+/// viennent. Ce n'est pas une économie théorique : dans MuseScore_General,
+/// les cordes lentes, rapides et en trémolo (programmes 49, 48 et 44)
+/// partagent exactement les mêmes 5,6 Mo de son, et ne se distinguent que par
+/// leurs enveloppes. Sans cela, en télécharger trois coûterait trois fois le
+/// prix d'une.
+///
 /// Comme pour [BanqueReduite], [octets] et [ecrire] sortent du même choix :
 /// le poids annoncé est celui du fichier produit.
 class BanqueAssemblee {
@@ -39,8 +46,22 @@ class BanqueAssemblee {
   /// Ce qui est retenu, source par source.
   final List<_Part> _parts = [];
 
+  /// Les échantillons retenus, dans l'ordre : d'où ils viennent et quel rang
+  /// ils y portaient. C'est la table commune à toutes les sources, celle qui
+  /// permet à deux banques de se partager un son.
+  final List<({Sf2 source, int rang})> _echantillons = [];
+
+  /// Pour retrouver vite un échantillon déjà pris : son empreinte mène aux
+  /// rangs candidats, qu'on compare ensuite octet par octet.
+  final Map<int, List<int>> _parEmpreinte = {};
+
   /// Les sonorités rencontrées une seconde fois, donc laissées de côté.
   final List<int> ignores = [];
+
+  /// Combien d'échantillons ont été reconnus comme déjà présents. Zéro quand
+  /// les sources n'ont rien en commun.
+  int _partages = 0;
+  int get echantillonsPartages => _partages;
 
   /// Les programmes de la banque 0 que l'assemblée offre, triés.
   List<int> get programmes => [
@@ -66,12 +87,90 @@ class BanqueAssemblee {
 
         for (int z = info.premiereZone; z < info.derniereZone; z++) {
           final int? instrument = source.instrumentDeZonePreset(z);
-          if (instrument != null) part.garderInstrument(instrument);
+          if (instrument != null) _garderInstrument(part, instrument);
         }
       }
 
       _parts.add(part);
     }
+  }
+
+  /// Retient un instrument et les échantillons qu'il atteint, en réutilisant
+  /// ceux qu'une source précédente a déjà apportés.
+  void _garderInstrument(_Part part, int instrument) {
+    if (part.instruments.contains(instrument)) return;
+    part.instruments.add(instrument);
+
+    final InstrumentInfo info = part.source.instruments[instrument];
+    for (int z = info.premiereZone; z < info.derniereZone; z++) {
+      final int? e = part.source.echantillonDeZoneInstrument(z);
+      if (e == null || part.echantillonVers.containsKey(e)) continue;
+      part.echantillonVers[e] = _rangGlobal(part.source, e);
+    }
+  }
+
+  /// Le rang de cet échantillon dans la table commune : celui d'un jumeau
+  /// déjà présent, ou un nouveau rang.
+  int _rangGlobal(Sf2 source, int rang) {
+    final int empreinte = _empreinte(source, rang);
+    for (final int candidat in _parEmpreinte[empreinte] ?? const <int>[]) {
+      final ({Sf2 source, int rang}) autre = _echantillons[candidat];
+      if (_memeSon(source, rang, autre.source, autre.rang)) {
+        _partages++;
+        return candidat;
+      }
+    }
+
+    _echantillons.add((source: source, rang: rang));
+    final int nouveau = _echantillons.length - 1;
+    (_parEmpreinte[empreinte] ??= []).add(nouveau);
+    return nouveau;
+  }
+
+  /// Une empreinte bon marché d'un échantillon : ses réglages, sa longueur, et
+  /// un point sur cent. Deux sons différents peuvent la partager — c'est
+  /// pourquoi [_memeSon] tranche ensuite.
+  int _empreinte(Sf2 source, int rang) {
+    final EchantillonInfo e = source.echantillons[rang];
+    int h = 0x811c9dc5;
+    void melanger(int v) {
+      h = ((h ^ (v & 0xFFFFFFFF)) * 0x01000193) & 0xFFFFFFFF;
+    }
+
+    melanger(e.fin - e.debut);
+    melanger(e.frequence);
+    melanger(e.hauteurOrigine);
+    melanger(e.correction);
+    melanger(e.debutBoucle - e.debut);
+    melanger(e.finBoucle - e.debut);
+    for (int i = e.debut; i < e.fin; i += 101) {
+      melanger(source.point(i));
+    }
+    return h;
+  }
+
+  /// Deux échantillons sont le même son s'ils ont les mêmes réglages **et**
+  /// exactement les mêmes points. On ne se fie pas à l'empreinte seule :
+  /// garder par erreur deux sons pour un est un gâchis, en confondre deux
+  /// différents ferait jouer faux.
+  bool _memeSon(Sf2 a, int ra, Sf2 b, int rb) {
+    final EchantillonInfo x = a.echantillons[ra];
+    final EchantillonInfo y = b.echantillons[rb];
+
+    final int longueur = x.fin - x.debut;
+    if (longueur != y.fin - y.debut ||
+        x.frequence != y.frequence ||
+        x.hauteurOrigine != y.hauteurOrigine ||
+        x.correction != y.correction ||
+        x.debutBoucle - x.debut != y.debutBoucle - y.debut ||
+        x.finBoucle - x.debut != y.finBoucle - y.debut) {
+      return false;
+    }
+
+    for (int i = 0; i < longueur; i++) {
+      if (a.point(x.debut + i) != b.point(y.debut + i)) return false;
+    }
+    return true;
   }
 
   /// Le poids du fichier qui sera produit, en octets.
@@ -85,15 +184,14 @@ class BanqueAssemblee {
     int generateursInstrument = 0;
     int echantillons = 0;
 
+    for (final ({Sf2 source, int rang}) e in _echantillons) {
+      final EchantillonInfo info = e.source.echantillons[e.rang];
+      sons += (info.fin - info.debut + silenceEntreEchantillons) * 2;
+    }
+    echantillons = _echantillons.length;
+
     for (final _Part part in _parts) {
       final Sf2 s = part.source;
-      for (final int e in part.echantillons) {
-        sons +=
-            (s.echantillons[e].fin -
-                s.echantillons[e].debut +
-                silenceEntreEchantillons) *
-            2;
-      }
       presets += part.presets.length;
       for (final int p in part.presets) {
         final PresetInfo info = s.presets[p];
@@ -110,7 +208,6 @@ class BanqueAssemblee {
           generateursInstrument += s.generateursDeZoneInstrument(z).length;
         }
       }
-      echantillons += part.echantillons.length;
     }
 
     return enteteFichier +
@@ -160,24 +257,20 @@ class BanqueAssemblee {
 
     f.fourCC('smpl');
     int total = 0;
-    for (final _Part part in _parts) {
-      for (final int e in part.echantillons) {
-        final EchantillonInfo info = part.source.echantillons[e];
-        total += (info.fin - info.debut + silenceEntreEchantillons) * 2;
-      }
+    for (final ({Sf2 source, int rang}) e in _echantillons) {
+      final EchantillonInfo info = e.source.echantillons[e.rang];
+      total += (info.fin - info.debut + silenceEntreEchantillons) * 2;
     }
     f.entier32(total);
 
-    for (final _Part part in _parts) {
-      for (final int e in part.echantillons) {
-        final EchantillonInfo info = part.source.echantillons[e];
-        f.points(
-          Int16List.fromList([
-            for (int i = info.debut; i < info.fin; i++) part.source.point(i),
-          ]),
-        );
-        f.silence(silenceEntreEchantillons);
-      }
+    for (final ({Sf2 source, int rang}) e in _echantillons) {
+      final EchantillonInfo info = e.source.echantillons[e.rang];
+      f.points(
+        Int16List.fromList([
+          for (int i = info.debut; i < info.fin; i++) e.source.point(i),
+        ]),
+      );
+      f.silence(silenceEntreEchantillons);
     }
 
     f.poserTaille(taille);
@@ -188,20 +281,16 @@ class BanqueAssemblee {
     final int taille = f.reserverTaille();
     f.fourCC('pdta');
 
-    // Les nouveaux numéros : chaque source vient après la précédente.
+    // Les instruments de chaque source viennent après ceux de la précédente.
+    // Les échantillons, eux, portent déjà leur rang définitif : c'est ce
+    // partage qui fait toute l'économie.
     int decalageInstrument = 0;
-    int decalageEchantillon = 0;
     for (final _Part part in _parts) {
       part.instrumentVers = {
         for (int i = 0; i < part.instruments.length; i++)
           part.instruments[i]: decalageInstrument + i,
       };
-      part.echantillonVers = {
-        for (int i = 0; i < part.echantillons.length; i++)
-          part.echantillons[i]: decalageEchantillon + i,
-      };
       decalageInstrument += part.instruments.length;
-      decalageEchantillon += part.echantillons.length;
     }
 
     // ---- phdr et ses zones
@@ -272,27 +361,25 @@ class BanqueAssemblee {
 
     // ---- shdr
     f.fourCC('shdr');
-    f.entier32((decalageEchantillon + 1) * 46);
+    f.entier32((_echantillons.length + 1) * 46);
     int position = 0;
-    for (final _Part part in _parts) {
-      for (final int e in part.echantillons) {
-        final EchantillonInfo info = part.source.echantillons[e];
-        final int longueur = info.fin - info.debut;
+    for (final ({Sf2 source, int rang}) e in _echantillons) {
+      final EchantillonInfo info = e.source.echantillons[e.rang];
+      final int longueur = info.fin - info.debut;
 
-        f.texte(info.nom, 20);
-        f.entier32(position);
-        f.entier32(position + longueur);
-        f.entier32(position + (info.debutBoucle - info.debut));
-        f.entier32(position + (info.finBoucle - info.debut));
-        f.entier32(info.frequence);
-        f.octet(info.hauteurOrigine);
-        f.octet(info.correction & 0xFF);
-        // Tout est mono : aucun échantillon n'a de jumeau à désigner.
-        f.entier16(0);
-        f.entier16(1);
+      f.texte(info.nom, 20);
+      f.entier32(position);
+      f.entier32(position + longueur);
+      f.entier32(position + (info.debutBoucle - info.debut));
+      f.entier32(position + (info.finBoucle - info.debut));
+      f.entier32(info.frequence);
+      f.octet(info.hauteurOrigine);
+      f.octet(info.correction & 0xFF);
+      // Tout est mono : aucun échantillon n'a de jumeau à désigner.
+      f.entier16(0);
+      f.entier16(1);
 
-        position += longueur + silenceEntreEchantillons;
-      }
+      position += longueur + silenceEntreEchantillons;
     }
     f.texte('EOS', 20);
     for (int i = 0; i < 5; i++) {
@@ -308,27 +395,18 @@ class BanqueAssemblee {
 }
 
 /// Ce qu'une source apporte à l'assemblée : ses presets retenus, et les
-/// instruments et échantillons qu'ils atteignent, dans l'ordre où on les
-/// rencontre.
+/// instruments qu'ils atteignent, dans l'ordre où on les rencontre.
+///
+/// Les échantillons, eux, ne lui appartiennent pas : ils vivent dans la table
+/// commune de [BanqueAssemblee], et [echantillonVers] dit seulement où chacun
+/// de ceux qu'elle utilise a atterri.
 class _Part {
   _Part(this.source);
 
   final Sf2 source;
   final List<int> presets = [];
   final List<int> instruments = [];
-  final List<int> echantillons = [];
 
   Map<int, int> instrumentVers = const {};
-  Map<int, int> echantillonVers = const {};
-
-  void garderInstrument(int instrument) {
-    if (instruments.contains(instrument)) return;
-    instruments.add(instrument);
-
-    final InstrumentInfo info = source.instruments[instrument];
-    for (int z = info.premiereZone; z < info.derniereZone; z++) {
-      final int? e = source.echantillonDeZoneInstrument(z);
-      if (e != null && !echantillons.contains(e)) echantillons.add(e);
-    }
-  }
+  final Map<int, int> echantillonVers = {};
 }

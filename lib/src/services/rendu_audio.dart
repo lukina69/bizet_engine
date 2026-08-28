@@ -65,6 +65,11 @@ class RenduAudio {
   ///
   /// C'est à l'hôte de les fournir : le moteur ne connaît ni les assets de
   /// Flutter, ni le système de fichiers de l'appareil.
+  /// Oublie la banque en place, pour qu'un prochain [chargerSoundFont] en
+  /// monte une autre. L'hôte s'en sert quand l'utilisateur change les
+  /// sonorités qu'il possède.
+  void oublierSoundFont() => _synth = null;
+
   void chargerSoundFont(ByteData donnees) {
     if (_synth != null) return;
 
