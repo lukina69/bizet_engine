@@ -176,6 +176,33 @@ class BanqueReduite {
     return (longueur * frequence / e.frequence).round();
   }
 
+  /// L'ambitus **du fichier** de chaque sonorité gardée : l'union des plages
+  /// de clavier de ses zones, une zone sans plage couvrant tout le clavier.
+  ///
+  /// À ne pas confondre avec la tessiture musicale du catalogue : la plage de
+  /// samples est presque toujours étirée bien au-delà de ce qui s'écoute.
+  /// Elle dit seulement ce que la banque *sait* jouer.
+  Map<int, (int, int)> get ambitus {
+    final Map<int, (int, int)> resultat = {};
+    for (final int p in _presets) {
+      int bas = 128;
+      int haut = -1;
+      for (final int z in _zonesPreset[p]!) {
+        final int? instrument = _source.instrumentDeZonePreset(z);
+        if (instrument == null) continue;
+        for (final int zi in _zonesInstrument[instrument] ?? const <int>[]) {
+          if (_source.echantillonDeZoneInstrument(zi) == null) continue;
+          final (int, int) plage =
+              _source.ambitusDeZoneInstrument(zi) ?? (0, 127);
+          if (plage.$1 < bas) bas = plage.$1;
+          if (plage.$2 > haut) haut = plage.$2;
+        }
+      }
+      if (haut >= bas) resultat[_source.presets[p].programme] = (bas, haut);
+    }
+    return resultat;
+  }
+
   /// Le poids du fichier qui sera produit, en octets. C'est le chiffre à
   /// afficher : il sort du même choix que les octets eux-mêmes.
   int get octets {

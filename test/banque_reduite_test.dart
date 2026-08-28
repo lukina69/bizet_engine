@@ -164,6 +164,12 @@ void main() {
           BanqueReduite.pour(source, programmes: {73});
       expect(reference.detail.single.nom, contains('Flute'));
       expect(rendu.programmes, [73]);
+
+      // Et l'ambitus du fichier contient le do central — celui de la
+      // banque, pas la tessiture musicale, souvent bien plus large.
+      final (int bas, int haut) = reference.ambitus[73]!;
+      expect(bas, lessThanOrEqualTo(60));
+      expect(haut, greaterThanOrEqualTo(60));
     });
 
     test('des octets qui ne sont pas un SoundFont sont refusés', () {
