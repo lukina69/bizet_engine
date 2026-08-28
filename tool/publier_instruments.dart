@@ -9,7 +9,7 @@ import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 /// sonorité, son extrait à écouter avant de choisir, et le manifeste qui
 /// dit à l'appli ce qui existe et ce que ça pèse.
 ///
-///     dart run tool/publier_instruments.dart <General.sf2> <HQ.sf2> <dossier>
+///     dart run tool/publier_instruments.dart <General.sf2> <HQ.sf2> <dossier> [recours.sf2]
 ///
 /// Pour chaque programme General MIDI mélodique (0 à 119 — les huit effets
 /// sonores, 120 à 127, n'ont rien à faire dans une mélodie) :
@@ -32,12 +32,22 @@ import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 ///   et puissance mesurée (RMS d'une note à vélocité 60, comme
 ///   `mesure_poids.dart`, pour égaliser les voix plus tard).
 ///
+/// **Une sonorité qui ne s'entend pas n'est pas publiée.** L'extrait est rendu
+/// par le synthétiseur qui la jouera vraiment, et son pic est mesuré : c'est
+/// le seul juge honnête. Les pianos à queue de MuseScore, par exemple,
+/// atténuent leurs couches de vingt-deux à vingt-six décibels en comptant sur
+/// des modulateurs SoundFont que `dart_melty_soundfont` ignore — ils sortent à
+/// −48 dBFS, un murmure. Sans ce garde-fou, ils avaient été publiés muets.
+///
+/// [recours] est une seconde banque, essayée quand la première ne donne rien
+/// d'audible. C'est ainsi qu'on garde un piano acoustique au catalogue.
+///
 /// Le dossier produit se publie tel quel dans une release GitHub.
 void main(List<String> args) {
-  if (args.length != 3) {
+  if (args.length < 3 || args.length > 4) {
     print(
       'Usage : dart run tool/publier_instruments.dart '
-      '<General.sf2> <HQ.sf2> <dossier de sortie>',
+      '<General.sf2> <HQ.sf2> <dossier de sortie> [recours.sf2]',
     );
     exit(1);
   }
@@ -45,30 +55,54 @@ void main(List<String> args) {
   final ByteData general = _lire(args[0]);
   final ByteData hq = _lire(args[1]);
   final Directory sortie = Directory(args[2])..createSync(recursive: true);
+  final ByteData? recours = args.length == 4 ? _lire(args[3]) : null;
+  final String nomRecours = recours == null ? '' : _nomDeBanque(recours);
 
   final List<Map<String, Object?>> instruments = [];
   int total = 0;
 
+  final List<int> muets = [];
+  final List<int> repris = [];
+
   for (int programme = 0; programme < 120; programme++) {
-    final _Version? standard = _Version.tailler(
-      general,
-      programme,
-      sortie,
-      'p${_num(programme)}',
-    );
-    if (standard == null) {
-      print('${_num(programme)}  absent de MuseScore_General, sauté');
-      continue;
+    final String base = 'p${_num(programme)}';
+    _Version? standard = _Version.tailler(general, programme, sortie, base);
+    standard?.ecrireExtrait();
+
+    // Ce qui ne s'entend pas ne se publie pas. Si une banque de recours est
+    // fournie, elle a sa chance avant qu'on renonce.
+    bool deRecours = false;
+    if (standard == null || standard.pic < _picMinimal) {
+      final int? faible = standard?.pic;
+      standard?.effacer();
+      standard = recours == null
+          ? null
+          : _Version.tailler(recours, programme, sortie, base);
+      standard?.ecrireExtrait();
+
+      if (standard != null && standard.pic >= _picMinimal) {
+        deRecours = true;
+        repris.add(programme);
+        print('${_num(programme)}  ${standard.nom.padRight(24)} '
+            'repris du recours (pic ${standard.pic}'
+            '${faible == null ? '' : ', MuseScore n\'en donnait que $faible'})');
+      } else {
+        standard?.effacer();
+        if (faible != null) {
+          muets.add(programme);
+          print('${_num(programme)}  MUET (pic $faible), NON PUBLIÉ');
+        } else {
+          print('${_num(programme)}  absent de MuseScore_General, sauté');
+        }
+        continue;
+      }
     }
 
-    standard.ecrireExtrait();
-
-    _Version? hqVersion = _Version.tailler(
-      hq,
-      programme,
-      sortie,
-      'p${_num(programme)}-hq',
-    );
+    // Pas de variante haute qualité pour ce qui vient du recours : elle
+    // viendrait d'une autre banque et ne serait pas la même sonorité.
+    _Version? hqVersion = deRecours
+        ? null
+        : _Version.tailler(hq, programme, sortie, 'p${_num(programme)}-hq');
     if (hqVersion != null) {
       hqVersion.ecrireExtrait();
       if (hqVersion.sonneComme(standard)) {
@@ -82,6 +116,7 @@ void main(List<String> args) {
       'programme': programme,
       'nom': standard.nom,
       'famille': programme ~/ 8,
+      if (deRecours) 'banque': nomRecours,
       'ambitus': [standard.ambitus.$1, standard.ambitus.$2],
       'standard': standard.manifeste(),
       if (hqVersion != null) 'hq': hqVersion.manifeste(),
@@ -122,6 +157,14 @@ ByteData _lire(String chemin) {
 }
 
 String _num(int programme) => programme.toString().padLeft(3, '0');
+
+/// Pic minimal, sur 32 767, pour qu'une sonorité soit tenue pour audible.
+///
+/// Calé sur le catalogue : sur cent vingt-six extraits, trois seulement
+/// tombaient dessous — les trois pianos à queue de MuseScore, à 117, 121 et
+/// 186 —, et le suivant dépassait quatre cents. Le seuil sépare donc un défaut
+/// franc d'une sonorité simplement discrète.
+const int _picMinimal = 400;
 
 String _mo(int octets) => '${(octets / 1e6).toStringAsFixed(2)} Mo';
 
@@ -171,6 +214,9 @@ class _Version {
   late final File extrait;
   late final ArrayInt16 _son;
   late final double rms;
+
+  /// Le pic de l'extrait, sur 32 767 : ce qui dit si la sonorité s'entend.
+  late final int pic;
 
   static _Version? tailler(
     ByteData banque,
@@ -232,6 +278,14 @@ class _Version {
       ..writeAsBytesSync(
         ExportMusical().versWav(_son, frequence: frequenceExtrait),
       );
+
+    int sommet = 0;
+    final int points = _son.bytes.lengthInBytes ~/ 2;
+    for (int i = 0; i < points; i++) {
+      final int v = (_son[i] as int).abs();
+      if (v > sommet) sommet = v;
+    }
+    pic = sommet;
 
     rms = _rms(programme);
   }
