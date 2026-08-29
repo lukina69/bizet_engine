@@ -28,8 +28,8 @@ void main() {
 
     test('l\'accès par programme trouve, ou dit franchement que non', () {
       expect(instrumentParProgramme(40)!.nom, 'Violin');
-      expect(instrumentParProgramme(0), isNull,
-          reason: 'le piano 0 n\'est pas dans la banque');
+      expect(instrumentParProgramme(1), isNull,
+          reason: 'le piano brillant n\'est pas au catalogue');
     });
 
     test('le registre découle du centre de la tessiture', () {

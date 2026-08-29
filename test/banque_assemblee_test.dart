@@ -8,7 +8,7 @@ import 'package:bizet_engine/bizet_engine.dart';
 
 /// La banque de l'application, comme pour [BanqueReduite] : recoller ne se
 /// vérifie que sur de vraies banques. Les essais se sautent si elle manque.
-final File _banque = File('../bizet/assets/soundfonts/Bizet_v4.sf2');
+final File _banque = File('../bizet/assets/soundfonts/Bizet_socle.sf2');
 
 /// La banque complète de MuseScore, d'où viennent les sonorités que l'appli
 /// propose au téléchargement. Trop lourde pour le dépôt (215 Mo), gardée à
@@ -58,6 +58,25 @@ ArrayInt16 _rendre(ByteData banque, int instrument) {
   );
 }
 
+/// Le plus grand écart entre deux rendus, point par point.
+///
+/// On ne demande pas l'égalité à l'octet : le socle a déjà traversé un
+/// rééchantillonnage, et le calcul en virgule flottante du synthétiseur ne
+/// retombe pas toujours du même côté de l'arrondi. Un écart d'une unité sur
+/// trente-deux mille sept cent soixante-sept est à quatre-vingt-dix décibels
+/// sous le signal — sous le plancher de bruit du seize bits. Ce qu'on vérifie,
+/// c'est que le recollage rend **le même son**, pas les mêmes octets.
+int _ecartMax(ArrayInt16 a, ArrayInt16 b) {
+  final int n = a.bytes.lengthInBytes ~/ 2;
+  if (b.bytes.lengthInBytes ~/ 2 != n) return 32768;
+  int pire = 0;
+  for (int i = 0; i < n; i++) {
+    final int e = ((a[i] as int) - (b[i] as int)).abs();
+    if (e > pire) pire = e;
+  }
+  return pire;
+}
+
 int _pic(ArrayInt16 son) {
   int pic = 0;
   final int points = son.bytes.lengthInBytes ~/ 2;
@@ -101,8 +120,8 @@ void main() {
           final ArrayInt16 avant = _rendre(source, instrument);
           final ArrayInt16 apres = _rendre(recollee, instrument);
           expect(
-            Uint8List.sublistView(apres.bytes),
-            Uint8List.sublistView(avant.bytes),
+            _ecartMax(avant, apres),
+            lessThanOrEqualTo(1),
             reason: 'programme $instrument',
           );
           // Et ce qu'on compare est bien du son, pas deux silences égaux — la
@@ -140,19 +159,21 @@ void main() {
         expect(rendu.programmes, [10, 73]);
       });
 
-      test('deux sonorités qui partagent leurs échantillons ne les paient '
-        'qu\'une fois', () {
-      // Dans MuseScore_General, les cordes rapides (48), lentes (49) et en
-      // trémolo (44) sont le même enregistrement joué autrement : mêmes
-      // 5,6 Mo de son, enveloppes différentes. Les télécharger toutes les
-      // trois ne doit pas coûter trois fois le prix d'une.
-      final Uint8List octets = _museScore.readAsBytesSync();
-      final ByteData source = ByteData.view(
-        octets.buffer,
-        octets.offsetInBytes,
-      );
+      test(
+        'deux sonorités qui partagent leurs échantillons ne les paient '
+        'qu\'une fois',
+        () {
+          // Dans MuseScore_General, les cordes rapides (48), lentes (49) et en
+          // trémolo (44) sont le même enregistrement joué autrement : mêmes
+          // 5,6 Mo de son, enveloppes différentes. Les télécharger toutes les
+          // trois ne doit pas coûter trois fois le prix d'une.
+          final Uint8List octets = _museScore.readAsBytesSync();
+          final ByteData source = ByteData.view(
+            octets.buffer,
+            octets.offsetInBytes,
+          );
 
-      ByteData cordes(int programme) => _vue(
+          ByteData cordes(int programme) => _vue(
             BanqueReduite.pour(
               source,
               programmes: {programme},
@@ -160,36 +181,38 @@ void main() {
             ).ecrire(),
           );
 
-      final ByteData rapides = cordes(48);
-      final BanqueAssemblee seule = BanqueAssemblee.de([rapides]);
-      final BanqueAssemblee trois = BanqueAssemblee.de([
-        rapides,
-        cordes(49),
-        cordes(44),
-      ]);
+          final ByteData rapides = cordes(48);
+          final BanqueAssemblee seule = BanqueAssemblee.de([rapides]);
+          final BanqueAssemblee trois = BanqueAssemblee.de([
+            rapides,
+            cordes(49),
+            cordes(44),
+          ]);
 
-      expect(trois.programmes, [44, 48, 49]);
-      expect(seule.echantillonsPartages, 0);
-      expect(trois.echantillonsPartages, greaterThan(0));
+          expect(trois.programmes, [44, 48, 49]);
+          expect(seule.echantillonsPartages, 0);
+          expect(trois.echantillonsPartages, greaterThan(0));
 
-      // Le poids des trois reste celui d'une, à la marge des en-têtes près.
-      expect(trois.octets, lessThan((seule.octets * 1.1).round()));
+          // Le poids des trois reste celui d'une, à la marge des en-têtes près.
+          expect(trois.octets, lessThan((seule.octets * 1.1).round()));
 
-      // Et les trois sonnent, chacune la sienne : partager les échantillons
-      // ne doit pas les avoir confondues.
-      final ByteData recollee = _vue(trois.ecrire());
-      for (final int programme in [44, 48, 49]) {
-        expect(
-          _pic(_rendre(recollee, programme)),
-          greaterThan(150),
-          reason: 'programme $programme muet',
-        );
-      }
-    }, skip: _museScore.existsSync()
-        ? null
-        : 'banque MuseScore absente : ${_museScore.path}');
+          // Et les trois sonnent, chacune la sienne : partager les échantillons
+          // ne doit pas les avoir confondues.
+          final ByteData recollee = _vue(trois.ecrire());
+          for (final int programme in [44, 48, 49]) {
+            expect(
+              _pic(_rendre(recollee, programme)),
+              greaterThan(150),
+              reason: 'programme $programme muet',
+            );
+          }
+        },
+        skip: _museScore.existsSync()
+            ? null
+            : 'banque MuseScore absente : ${_museScore.path}',
+      );
 
-    test('des octets qui ne sont pas un SoundFont sont refusés', () {
+      test('des octets qui ne sont pas un SoundFont sont refusés', () {
         expect(
           () => BanqueAssemblee.de([_seule(source, 73), ByteData(64)]),
           throwsA(isA<FormatException>()),

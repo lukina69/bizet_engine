@@ -1,7 +1,12 @@
 import 'instrument.dart';
 
-/// Les instruments de la banque embarquée (Bizet_v4.sf2), dans l'ordre des
-/// numéros de programme. Source de vérité unique : le grisage des octaves,
+/// Les instruments que l'application connaît, dans l'ordre des numéros de
+/// programme.
+///
+/// Ils débordent de la banque embarquée : celle-ci n'en porte plus que neuf,
+/// le reste se téléchargeant à la demande. Une sonorité absente d'ici n'est
+/// pas pour autant injouable — elle est simplement classée « neutre » face aux
+/// autres, et n'est pas égalisée quand elle accompagne. Source de vérité unique : le grisage des octaves,
 /// l'épaisseur et les suggestions d'associations lisent tous cette table.
 ///
 /// La palette est équilibrée à dessein : dix sons résonants, dix entretenus.
@@ -13,6 +18,18 @@ import 'instrument.dart';
 /// tout le clavier. Les vrais plafonds relevés dans la banque (tuba : 72 ;
 /// orgue, chœur et cors : 96) sont respectés.
 const List<Instrument> catalogue = [
+  // Le piano à queue ne vient pas de la même banque que les autres : ceux de
+  // MuseScore comptent sur des modulateurs que le moteur ignore, et n'en
+  // sortaient qu'un murmure. Celui-ci est repris de GeneralUser GS. Son poids
+  // a été mesuré contre le violon, dans les mêmes conditions que la table.
+  Instrument(
+      programme: 0,
+      nom: 'Stereo Grand',
+      noteMin: 21,
+      noteMax: 108,
+      enveloppe: Enveloppe.resonant,
+      poidsNaturel: -6.5,
+      famille: Famille.piano),
   Instrument(
       programme: 4,
       nom: 'Tine Electric Piano',

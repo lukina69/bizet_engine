@@ -14,6 +14,7 @@ enum Enveloppe {
 /// Famille de timbre. Sert uniquement à détecter la redondance
 /// (deux instruments qui font la même chose).
 enum Famille {
+  piano,
   clavierElectrique,
   clavecin,
   metallophone,

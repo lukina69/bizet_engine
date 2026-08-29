@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 /// c'est la seule façon d'éprouver un module dont le métier est de faire du
 /// son. Les essais qui en dépendent se sautent d'eux-mêmes si elle manque.
 final File _banque =
-    File('../bizet/assets/soundfonts/Bizet_v4.sf2');
+    File('../bizet/assets/soundfonts/Bizet_socle.sf2');
 
 ByteData _octetsBanque() {
   final Uint8List octets = _banque.readAsBytesSync();
@@ -51,7 +51,7 @@ String _recetteJson() => jsonEncode(Recette(
             accompagnement: Intervalle(-3, -1),
           ),
           instrumentation: const InstrumentationRecette.enCouples([
-            CoupleInstruments(principal: 73, accompagnants: [24]),
+            CoupleInstruments(principal: 73, accompagnants: [42]),
           ]),
         ),
       ],

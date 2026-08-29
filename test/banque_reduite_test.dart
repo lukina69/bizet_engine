@@ -10,15 +10,16 @@ import 'package:bizet_engine/bizet_engine.dart';
 /// La banque de l'application : trop lourde pour vivre dans le dépôt du
 /// moteur, mais réduire une banque ne se vérifie que sur une vraie banque.
 /// Les essais se sautent d'eux-mêmes si elle manque.
-final File _banque = File('../bizet/assets/soundfonts/Bizet_v4.sf2');
+final File _banque = File('../bizet/assets/soundfonts/Bizet_socle.sf2');
 
 ByteData _octets() {
   final Uint8List o = _banque.readAsBytesSync();
   return ByteData.view(o.buffer, o.offsetInBytes);
 }
 
-/// Trois sonorités du Danube : guitare nylon, violon, flûte.
-const Set<int> _trois = {24, 40, 73};
+/// Trois sonorités du socle, prises dans trois familles : le clavier, la
+/// corde frottée, le souffle.
+const Set<int> _trois = {4, 40, 73};
 
 Melodie _gamme() => Melodie(
       titre: 'gamme',
@@ -42,11 +43,11 @@ void main() {
 
     setUp(() => source = _octets());
 
-    test('ne garder que trois sonorités divise la banque par sept', () {
+    test('ne garder que trois sonorités allège franchement la banque', () {
       final BanqueReduite reduite =
           BanqueReduite.pour(source, programmes: _trois);
 
-      expect(reduite.octets, lessThan(source.lengthInBytes ~/ 5));
+      expect(reduite.octets, lessThan(source.lengthInBytes ~/ 2));
       expect(reduite.detail, hasLength(3));
       expect(
         reduite.detail.map((d) => d.programme).toSet(),
@@ -90,11 +91,12 @@ void main() {
 
     test('les sonorités absentes de la banque sont signalées', () {
       final BanqueReduite reduite =
-          BanqueReduite.pour(source, programmes: {24, 0, 1});
+          BanqueReduite.pour(source, programmes: {40, 6, 19});
 
-      // Cette banque n'a ni piano acoustique (0) ni piano brillant (1).
-      expect(reduite.manquants, [0, 1]);
-      expect(reduite.detail.map((d) => d.programme), [24]);
+      // Le socle n'a ni clavecin (6) ni orgue d'église (19) : ceux-là se
+      // téléchargent.
+      expect(reduite.manquants, [6, 19]);
+      expect(reduite.detail.map((d) => d.programme), [40]);
     });
 
     test('la banque réduite se relit et sonne', () async {
