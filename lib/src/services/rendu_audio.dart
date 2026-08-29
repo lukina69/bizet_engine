@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
 import '../model/balancement.dart';
@@ -204,7 +206,7 @@ class RenduAudio {
     // Les compagnons prennent les canaux suivants : c'est justement parce
     // qu'ils sont à part qu'ils peuvent porter un autre timbre.
     for (final voix in compagnons.canaux(epaisseur.canaux)) {
-      _preparerCanal(synth, voix.canal, voix.programme);
+      _preparerCanal(synth, voix.canal, voix.programme, niveau: voix.niveau);
     }
 
     final List<_Evenement> evenements = _evenements(melodie, reglages);
@@ -239,12 +241,23 @@ class RenduAudio {
     );
   }
 
-  /// Installe un canal MIDI : sa sonorité.
+  /// Le volume de canal (CC7) qui réalise un écart de [db].
+  ///
+  /// Le synthétiseur élève ce volume au carré pour en faire un gain — comme
+  /// la vélocité —, d'où le même exposant 40 que partout ailleurs. Cent est
+  /// la valeur au repos, celle qu'un canal prend sans qu'on lui dise rien ;
+  /// on ne peut donc monter que de quatre décibels au-dessus, mais descendre
+  /// autant qu'on veut.
+  static int volumeDeCanal(double db) =>
+      (100 * math.pow(10, db / 40)).round().clamp(0, 127);
+
+  /// Installe un canal MIDI : sa sonorité, et son niveau.
   void _preparerCanal(
     Synthesizer synth,
     int canal,
-    int programme,
-  ) {
+    int programme, {
+    double niveau = 0,
+  }) {
     // Attention : selectPreset() attend un INDICE dans la liste des
     // instruments du fichier .sf2, pas un numéro de programme General MIDI.
     // Comme Melodie.instrumentMidi est bien un numéro GM, on envoie
@@ -255,6 +268,17 @@ class RenduAudio {
       data1: programme,
       data2: 0,
     );
+
+    // Le niveau passe par le volume de canal, jamais par la vélocité : ainsi
+    // baisser une voix ne l'assourdit pas, ça la met simplement en retrait.
+    if (niveau != 0) {
+      synth.processMidiMessage(
+        channel: canal,
+        command: 0xB0, // contrôleur
+        data1: 0x07, // volume de canal
+        data2: volumeDeCanal(niveau),
+      );
+    }
   }
 
   /// Convertit la mélodie en événements note-on / note-off, triés dans le temps.

@@ -8,6 +8,7 @@ import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
 import '../model/melodie.dart';
 import '../model/reglages.dart';
+import 'rendu_audio.dart';
 
 /// Écrit une [Melodie] dans un format que le reste du monde sait lire : MIDI
 /// pour la partition jouable, WAV pour le son déjà fabriqué.
@@ -37,7 +38,11 @@ class ExportMusical {
   }) {
     final Melodie melodie = reglages.applique(partition);
     final Epaisseur epaisseur = reglages.epaisseur;
-    final Compagnons compagnons = reglages.compagnons;
+    // Les compagnons **calés** : ce sont eux que les notes suivront plus bas,
+    // et eux seuls qui portent le niveau de chaque voix. Prendre les
+    // compagnons bruts ici enverrait le fichier avec des canaux muets de
+    // toute correction.
+    final Compagnons compagnons = reglages.compagnonsCales(melodie);
     final List<int> piste = [];
 
     // Tempo : nombre de microsecondes par noire.
@@ -57,6 +62,17 @@ class ExportMusical {
     // Les compagnons, eux, ont chacun le leur, sur les canaux suivants.
     for (final voix in compagnons.canaux(epaisseur.canaux)) {
       piste.addAll([0x00, 0xC0 | voix.canal, voix.programme & 0x7F]);
+      // Le niveau de la voix voyage avec elle : un fichier MIDI ouvert
+      // ailleurs doit garder l'équilibre qu'on a entendu ici. Il passe par le
+      // volume de canal, comme au rendu, et non par la vélocité.
+      if (voix.niveau != 0) {
+        piste.addAll([
+          0x00,
+          0xB0 | voix.canal,
+          0x07,
+          RenduAudio.volumeDeCanal(voix.niveau),
+        ]);
+      }
     }
 
     int precedent = 0;

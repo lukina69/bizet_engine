@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 
 import '../instruments/catalogue.dart';
 import '../instruments/instrument.dart';
@@ -31,12 +30,28 @@ class Compagnons {
   /// jamais enregistré dans le fichier de travail.
   final List<int> decalages;
 
-  /// Vélocité de chaque voix, une fois égalisée par [equilibresSous]. Comme
-  /// les décalages : un calage de jeu, jamais enregistré.
+  /// Vélocité de chaque voix ajoutée. Elle ne dit que **l'expression** — la
+  /// force de l'attaque, et donc le timbre : sur un SoundFont, frapper fort
+  /// ne fait pas que jouer fort, ça joue plus clair. Le niveau, lui, vit dans
+  /// [niveaux].
   final List<int> velocites;
 
+  /// Correction de **niveau** de chaque voix, en décibels, posée par
+  /// [equilibresSous]. Zéro ne corrige rien.
+  ///
+  /// Séparer le niveau de la vélocité n'est pas un raffinement : tant que
+  /// l'égalisation passait par la vélocité, corriger le volume d'une voix
+  /// changeait aussi son timbre, et une flûte discrète sonnait autrement
+  /// qu'une flûte en avant. Le niveau part donc sur le volume de canal, qui
+  /// ne touche à rien d'autre.
+  ///
+  /// Comme les décalages : un calage de jeu, jamais enregistré.
+  final List<double> niveaux;
+
   const Compagnons._(this.rangs,
-      [this.decalages = const [0, 0], this.velocites = _velocites]);
+      [this.decalages = const [0, 0],
+      this.velocites = _velocites,
+      this.niveaux = const [0.0, 0.0]]);
 
   /// La mélodie seule, sans voix ajoutée.
   static const Compagnons aucun = Compagnons._([null, null]);
@@ -71,10 +86,15 @@ class Compagnons {
   /// Le rang détermine le canal, allumé ou non : deux voix ne peuvent pas
   /// atterrir sur le même canal, quel que soit l'ordre dans lequel
   /// l'utilisateur les allume.
-  List<({int canal, int programme})> canaux(int premierCanal) => [
+  List<({int canal, int programme, double niveau})> canaux(int premierCanal) =>
+      [
         for (int i = 0; i < maximum; i++)
           if (rangs[i] case final int programme)
-            (canal: premierCanal + i, programme: programme),
+            (
+              canal: premierCanal + i,
+              programme: programme,
+              niveau: niveaux[i],
+            ),
       ];
 
   /// Les voix à faire sonner pour une note donnée : la même hauteur qu'elle,
@@ -106,11 +126,13 @@ class Compagnons {
   Compagnons equilibresSous(int programmeMelodie, {int presence = 0}) {
     final Instrument? melodie = instrumentParProgramme(programmeMelodie);
 
-    return Compagnons._(rangs, decalages, [
+    return Compagnons._(rangs, decalages, velocites, [
       for (int i = 0; i < maximum; i++)
-        _velociteEqualisee(velocites[i], melodie,
-            rangs[i] == null ? null : instrumentParProgramme(rangs[i]!),
-            presence),
+        _niveauEqualise(
+          melodie,
+          rangs[i] == null ? null : instrumentParProgramme(rangs[i]!),
+          presence,
+        ),
     ]);
   }
 
@@ -118,21 +140,19 @@ class Compagnons {
   /// jamais devenir brutal.
   static const double _dbParCran = 4.0;
 
-  static int _velociteEqualisee(
-    int velocite,
+  static double _niveauEqualise(
     Instrument? melodie,
     Instrument? voix,
     int presence,
   ) {
     double db = presence * _dbParCran;
     // L'égalisation ne sait rien corriger sans les deux poids ; la présence,
-    // elle, s'applique toujours.
+    // elle, s'applique toujours. **Le catalogue ne connaît qu'une partie des
+    // sonorités téléchargeables** : pour les autres, seule la présence joue.
     if (melodie != null && voix != null) {
       db += melodie.poidsNaturel - voix.poidsNaturel;
     }
-    // L'amplitude suit à peu près le carré de la vélocité : un écart de
-    // D dB se compense par un facteur 10^(D/40).
-    return (velocite * math.pow(10, db / 40)).round().clamp(1, 127);
+    return db;
   }
 
   /// Les mêmes voix, calées sur un morceau : chacune se décale d'octave(s)
