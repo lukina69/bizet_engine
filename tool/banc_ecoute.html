@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banc d'écoute — vélocité et égalisation</title>
+<style>
+  :root {
+    --fond: #f6f4f0;
+    --carte: #ffffff;
+    --trait: #ded8cf;
+    --encre: #23201c;
+    --encre-douce: #6d665c;
+    --accent: #b4531a;
+    --accent-doux: #f3e2d6;
+    --ombre: 0 1px 2px rgba(35, 32, 28, .06), 0 4px 14px rgba(35, 32, 28, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fond: #171614;
+      --carte: #201e1b;
+      --trait: #37332e;
+      --encre: #ece7e0;
+      --encre-douce: #9a9289;
+      --accent: #e8894b;
+      --accent-doux: #3a2a1e;
+      --ombre: none;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 32px 20px 64px;
+    background: var(--fond);
+    color: var(--encre);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  main { max-width: 780px; margin: 0 auto; }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 26px;
+    letter-spacing: -.02em;
+  }
+
+  .sous-titre { margin: 0 0 4px; color: var(--encre-douce); }
+  .sous-titre b { color: var(--encre); font-weight: 600; }
+
+  section {
+    margin-top: 34px;
+    background: var(--carte);
+    border: 1px solid var(--trait);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: var(--ombre);
+  }
+
+  h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+    letter-spacing: -.01em;
+  }
+
+  .consigne {
+    margin: 0 0 20px;
+    color: var(--encre-douce);
+    font-size: 14px;
+  }
+
+  .rangee { margin-bottom: 18px; }
+
+  .etiquette {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--encre-douce);
+  }
+
+  .choix { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--trait);
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  button:hover { border-color: var(--accent); }
+  button[aria-pressed="true"] {
+    background: var(--accent-doux);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .choix--large button { flex: 1 1 96px; text-align: center; }
+
+  .choix button small {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: var(--encre-douce);
+  }
+  .choix button[aria-pressed="true"] small { color: var(--accent); }
+
+  .transport {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--trait);
+  }
+
+  .jouer {
+    flex: none;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border-color: var(--accent);
+    color: var(--accent);
+    font-size: 17px;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+  }
+  .jouer:hover { background: var(--accent-doux); }
+
+  .piste {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--trait);
+    cursor: pointer;
+    position: relative;
+  }
+  .piste span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0;
+    border-radius: 4px;
+    background: var(--accent);
+  }
+
+  .horloge {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--encre-douce);
+    min-width: 74px;
+    text-align: right;
+  }
+
+  .boucle {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: none;
+    font-size: 13px;
+    color: var(--encre-douce);
+    cursor: pointer;
+    user-select: none;
+  }
+  .boucle input { accent-color: var(--accent); }
+
+  .lecture {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--encre-douce);
+    font-variant-numeric: tabular-nums;
+    min-height: 20px;
+  }
+  .lecture b { color: var(--encre); font-weight: 600; }
+
+  .note {
+    margin: 34px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--encre-douce);
+  }
+  .note b { color: var(--encre); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Banc d'écoute</h1>
+  <p class="sous-titre" id="passage"></p>
+  <p class="sous-titre">
+    Chaque bouton remplace le son <b>sans déplacer le curseur</b> : bascule en
+    pleine phrase, c'est là que l'écart s'entend.
+    <b>Barre d'espace</b> pour jouer ou arrêter.
+  </p>
+
+  <section id="serie-a">
+    <h2>A — La vélocité</h2>
+    <p class="consigne">
+      Le même passage à cinq vélocités, <b>tous ramenés au même niveau</b> : ce
+      qui change d'un bouton à l'autre est le timbre, et rien d'autre. La
+      vélocité ne glisse pas sur une pente, elle choisit une couche
+      d'échantillons — écoute palier par palier, l'un peut sonner tout autrement
+      que ses voisins. Monte le volume comme tu veux, on ne compare pas une
+      sonorité à une autre ici.
+    </p>
+
+    <div class="rangee">
+      <span class="etiquette">Sonorité</span>
+      <div class="choix" id="a-instruments"></div>
+    </div>
+
+    <div class="rangee">
+      <span class="etiquette">Vélocité</span>
+      <div class="choix choix--large" id="a-velocites"></div>
+    </div>
+
+    <div class="transport">
+      <button class="jouer" id="a-jouer" aria-label="Jouer">▶</button>
+      <div class="piste" id="a-piste"><span></span></div>
+      <div class="horloge" id="a-horloge">0:00 / 0:00</div>
+      <label class="boucle"><input type="checkbox" id="a-boucle" checked> boucle</label>
+    </div>
+    <p class="lecture" id="a-lecture"></p>
+  </section>
+
+  <section id="serie-b">
+    <h2>B — L'égalisation</h2>
+    <p class="consigne">
+      Les quatre sonorités à la même vélocité. <b>Avant</b>, c'est l'appli
+      d'aujourd'hui : personne au même niveau. <b>Après</b>, chacune est
+      corrigée par sa mesure. Passe d'une sonorité à l'autre et demande-toi si
+      elles pèsent pareil — puis bascule avant/après.
+      <b>Ne touche pas au volume de ton système entre les deux</b> : ce que
+      l'égalisation coûte en volume d'ensemble fait partie de ce qu'il faut
+      juger.
+    </p>
+
+    <div class="rangee">
+      <span class="etiquette">État</span>
+      <div class="choix choix--large" id="b-variantes"></div>
+    </div>
+
+    <div class="rangee">
+      <span class="etiquette">Sonorité</span>
+      <div class="choix choix--large" id="b-instruments"></div>
+    </div>
+
+    <div class="transport">
+      <button class="jouer" id="b-jouer" aria-label="Jouer">▶</button>
+      <div class="piste" id="b-piste"><span></span></div>
+      <div class="horloge" id="b-horloge">0:00 / 0:00</div>
+      <label class="boucle"><input type="checkbox" id="b-boucle"> boucle</label>
+    </div>
+    <p class="lecture" id="b-lecture"></p>
+
+    <div class="rangee" style="margin: 18px 0 0">
+      <button id="b-enchainer">Enchaîner les quatre</button>
+    </div>
+  </section>
+
+  <p class="note" id="note"></p>
+</main>
+
+<script src="donnees.js"></script>
+<script>
+'use strict';
+
+/* Les extraits, retrouvables par ce qu'ils font entendre. */
+const parCle = new Map(
+  BANC.extraits.map((e) => [`${e.serie}|${e.instrument}|${e.variante}`, e]));
+
+const nomInstrument = new Map(BANC.instruments.map((i) => [i.cle, i.nom]));
+
+const db = (v) =>
+  (v > 0 ? '+' : v < 0 ? '−' : '') +
+  Math.abs(v).toFixed(1).replace('.', ',') + ' dB';
+
+const horodate = (s) =>
+  `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+/* Un lecteur par série.
+ *
+ * Tous les extraits sont chargés d'avance et gardés côte à côte : changer de
+ * son revient alors à mettre l'aiguille du nouveau exactement là où en était
+ * l'ancien. C'est tout l'intérêt du banc — comparer deux timbres de mémoire ne
+ * marche pas, les entendre se remplacer au même endroit de la phrase, si. */
+class Lecteur {
+  constructor(prefixe, extraits) {
+    this.sons = new Map();
+    for (const e of extraits) {
+      const audio = new Audio(e.fichier);
+      audio.preload = 'auto';
+      this.sons.set(e.fichier, audio);
+    }
+    this.actuel = null;
+
+    this.bouton = document.getElementById(`${prefixe}-jouer`);
+    this.piste = document.getElementById(`${prefixe}-piste`);
+    this.jauge = this.piste.querySelector('span');
+    this.horloge = document.getElementById(`${prefixe}-horloge`);
+    this.boucle = document.getElementById(`${prefixe}-boucle`);
+    this.section = document.getElementById(`serie-${prefixe}`);
+
+    this.bouton.addEventListener('click', () => this.basculer());
+    this.piste.addEventListener('click', (ev) => {
+      const rect = this.piste.getBoundingClientRect();
+      this.aller(((ev.clientX - rect.left) / rect.width) * this.duree());
+    });
+    this.boucle.addEventListener('change', () => {
+      if (this.actuel) this.actuel.loop = this.boucle.checked;
+    });
+
+    /* L'autre série, arrêtée dès que celle-ci démarre. */
+    this.autre = null;
+
+    this.rafraichir = this.rafraichir.bind(this);
+    requestAnimationFrame(this.rafraichir);
+  }
+
+  duree() {
+    return this.actuel && isFinite(this.actuel.duration)
+      ? this.actuel.duration : BANC.passage.duree + 1;
+  }
+
+  /* Met le son demandé à la place du précédent, à la même seconde. */
+  charger(fichier) {
+    const suivant = this.sons.get(fichier);
+    if (!suivant || suivant === this.actuel) return;
+
+    const instant = this.actuel ? this.actuel.currentTime : 0;
+    const jouait = this.actuel ? !this.actuel.paused : false;
+
+    if (this.actuel) this.actuel.pause();
+    this.actuel = suivant;
+    this.actuel.loop = this.boucle.checked;
+    this.aller(instant);
+    if (jouait) this.actuel.play();
+  }
+
+  /* Un son pas encore décodé refuse qu'on le déplace : on attend qu'il sache
+   * où il en est plutôt que de perdre la position en silence. */
+  aller(seconde) {
+    const audio = this.actuel;
+    if (!audio) return;
+    const poser = () => { audio.currentTime = Math.max(0, seconde); };
+    if (audio.readyState >= 1) poser();
+    else audio.addEventListener('loadedmetadata', poser, { once: true });
+  }
+
+  basculer() {
+    if (!this.actuel) return;
+    if (this.actuel.paused) {
+      // Deux séries qui joueraient ensemble ne s'écouteraient ni l'une ni
+      // l'autre : lancer l'une arrête toujours la sienne.
+      if (this.autre) this.autre.arreter();
+      this.actuel.play();
+    } else {
+      this.actuel.pause();
+    }
+  }
+
+  arreter() {
+    if (this.actuel) this.actuel.pause();
+  }
+
+  rafraichir() {
+    const audio = this.actuel;
+    const position = audio ? audio.currentTime : 0;
+    const duree = this.duree();
+    this.jauge.style.width = `${(position / duree) * 100}%`;
+    this.horloge.textContent = `${horodate(position)} / ${horodate(duree)}`;
+    this.bouton.textContent = audio && !audio.paused ? '⏸' : '▶';
+    requestAnimationFrame(this.rafraichir);
+  }
+}
+
+/* Une rangée de boutons dont un seul est enfoncé. */
+function rangee(hote, choix, surChoix) {
+  const boutons = new Map();
+  for (const c of choix) {
+    const bouton = document.createElement('button');
+    bouton.type = 'button';
+    bouton.setAttribute('aria-pressed', 'false');
+    bouton.innerHTML = c.detail
+      ? `${c.libelle}<small>${c.detail}</small>` : c.libelle;
+    bouton.addEventListener('click', () => surChoix(c.valeur));
+    hote.appendChild(bouton);
+    boutons.set(c.valeur, bouton);
+  }
+  return (actif) => {
+    for (const [valeur, bouton] of boutons) {
+      bouton.setAttribute('aria-pressed', String(valeur === actif));
+    }
+  };
+}
+
+document.getElementById('passage').innerHTML =
+  `<b>${BANC.passage.titre}</b> — ${BANC.passage.mesures} mesures à ` +
+  `${BANC.passage.tempo} à la noire, ${BANC.passage.duree
+    .toFixed(1).replace('.', ',')} s, mélodie seule.`;
+
+document.getElementById('note').innerHTML =
+  `<b>L'écart mesuré</b> est le niveau réel de l'extrait, en dB au-dessus du ` +
+  `plus discret de sa rangée : c'est le chiffre que l'oreille doit confirmer ` +
+  `ou démentir. La série A doit afficher zéro partout — c'est la preuve que ` +
+  `seul le timbre change. La série B, elle, montre ce que l'égalisation ` +
+  `rattrape et ce qu'elle laisse. Aujourd'hui l'appli joue à la vélocité ` +
+  `<b>${BANC.velociteActuelle}</b>.`;
+
+/* --- Série A ------------------------------------------------------------- */
+
+const a = new Lecteur('a', BANC.extraits.filter((e) => e.serie === 'a'));
+let aInstrument = BANC.instruments[0].cle;
+let aVelocite = String(BANC.velociteActuelle);
+
+const aLecture = document.getElementById('a-lecture');
+
+const aMajInstruments = rangee(
+  document.getElementById('a-instruments'),
+  BANC.instruments.map((i) => ({ valeur: i.cle, libelle: i.nom })),
+  (cle) => { aInstrument = cle; aChoisir(); });
+
+const aMajVelocites = rangee(
+  document.getElementById('a-velocites'),
+  BANC.velocites.map((v) => ({
+    valeur: String(v),
+    libelle: String(v),
+    detail: v === BANC.velociteActuelle ? "celle d'aujourd'hui" : '&nbsp;',
+  })),
+  (v) => { aVelocite = v; aChoisir(); });
+
+function aChoisir() {
+  const extrait = parCle.get(`a|${aInstrument}|${aVelocite}`);
+  aMajInstruments(aInstrument);
+  aMajVelocites(aVelocite);
+  a.charger(extrait.fichier);
+  aLecture.innerHTML =
+    `<b>${nomInstrument.get(aInstrument)}, vélocité ${aVelocite}</b> · ` +
+    `mise à niveau ${db(extrait.miseANiveau)} · ` +
+    `écart mesuré ${db(extrait.mesure)}`;
+}
+
+/* --- Série B ------------------------------------------------------------- */
+
+const b = new Lecteur('b', BANC.extraits.filter((e) => e.serie === 'b'));
+let bVariante = 'avant';
+let bInstrument = BANC.instruments[0].cle;
+
+const bLecture = document.getElementById('b-lecture');
+
+const bMajVariantes = rangee(
+  document.getElementById('b-variantes'),
+  [
+    { valeur: 'avant', libelle: 'Avant', detail: "l'appli d'aujourd'hui" },
+    { valeur: 'apres', libelle: 'Après', detail: 'corrigée par la mesure' },
+  ],
+  (v) => { bVariante = v; bChoisir(); });
+
+const bMajInstruments = rangee(
+  document.getElementById('b-instruments'),
+  BANC.instruments.map((i) => ({ valeur: i.cle, libelle: i.nom })),
+  (cle) => { bInstrument = cle; bChoisir(); });
+
+function bChoisir() {
+  const extrait = parCle.get(`b|${bInstrument}|${bVariante}`);
+  bMajVariantes(bVariante);
+  bMajInstruments(bInstrument);
+  b.charger(extrait.fichier);
+
+  const correction = extrait.volumeDeCanal === null
+    ? 'aucune correction'
+    : `correction ${db(extrait.correction)} ` +
+      `(volume de canal ${extrait.volumeDeCanal})`;
+  bLecture.innerHTML =
+    `<b>${nomInstrument.get(bInstrument)}, ${bVariante === 'avant'
+      ? 'avant' : 'après'}</b> · ${correction} · ` +
+    `écart mesuré ${db(extrait.mesure)}`;
+}
+
+/* Les quatre à la suite : c'est en les entendant défiler qu'on juge si elles
+ * pèsent pareil, pas en les prenant une à une. */
+document.getElementById('b-enchainer').addEventListener('click', () => {
+  const suite = BANC.instruments.map((i) => i.cle);
+  let rang = 0;
+  const jouer = () => {
+    bInstrument = suite[rang];
+    bChoisir();
+    b.aller(0);
+    b.actuel.loop = false;
+    a.arreter();
+    b.actuel.play();
+    b.actuel.addEventListener('ended', () => {
+      if (++rang < suite.length) jouer();
+      else if (b.actuel) b.actuel.loop = b.boucle.checked;
+    }, { once: true });
+  };
+  jouer();
+});
+
+/* --- Clavier ------------------------------------------------------------- */
+
+a.autre = b;
+b.autre = a;
+
+let derniere = a;
+for (const [lecteur, section] of [[a, a.section], [b, b.section]]) {
+  section.addEventListener('pointerdown', () => { derniere = lecteur; });
+}
+
+document.addEventListener('keydown', (ev) => {
+  if (ev.code !== 'Space' || ev.target.tagName === 'INPUT') return;
+  ev.preventDefault();
+  derniere.basculer();
+});
+
+aChoisir();
+bChoisir();
+</script>
+</body>
+</html>
