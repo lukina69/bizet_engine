@@ -1,6 +1,7 @@
 
 import '../instruments/catalogue.dart';
 import '../instruments/instrument.dart';
+import 'epaisseur.dart';
 
 /// Un ou deux instruments qui doublent la mélodie, pour enrichir le timbre
 /// d'un morceau qui n'a qu'une voix.
@@ -30,12 +31,6 @@ class Compagnons {
   /// jamais enregistré dans le fichier de travail.
   final List<int> decalages;
 
-  /// Vélocité de chaque voix ajoutée. Elle ne dit que **l'expression** — la
-  /// force de l'attaque, et donc le timbre : sur un SoundFont, frapper fort
-  /// ne fait pas que jouer fort, ça joue plus clair. Le niveau, lui, vit dans
-  /// [niveaux].
-  final List<int> velocites;
-
   /// Correction de **niveau** de chaque voix, en décibels, posée par
   /// [equilibresSous]. Zéro ne corrige rien.
   ///
@@ -50,7 +45,6 @@ class Compagnons {
 
   const Compagnons._(this.rangs,
       [this.decalages = const [0, 0],
-      this.velocites = _velocites,
       this.niveaux = const [0.0, 0.0]]);
 
   /// La mélodie seule, sans voix ajoutée.
@@ -63,13 +57,22 @@ class Compagnons {
         for (int i = 0; i < maximum; i++) i < rangs.length ? rangs[i] : null,
       ]);
 
-  /// Vélocité de chaque voix ajoutée. Nettement en retrait des 100 de la
-  /// mélodie : à l'unisson, deux timbres à volume égal ne s'additionnent pas,
-  /// ils se masquent, et la mélodie perd son dessin.
+  /// Recul de chaque voix ajoutée sous la brillance de la mélodie, en crans
+  /// de vélocité. Nettement en retrait : à l'unisson, deux timbres à volume
+  /// égal ne s'additionnent pas, ils se masquent, et la mélodie perd son
+  /// dessin.
   ///
-  /// Valeurs de départ, à retoucher à l'oreille : c'est le seul chiffre à
-  /// bouger si les compagnons couvrent la mélodie ou s'entendent à peine.
-  static const List<int> _velocites = [60, 45];
+  /// La vélocité ne dit ici que **l'expression** — la force de l'attaque, et
+  /// donc le timbre : sur un SoundFont, frapper fort ne fait pas que jouer
+  /// fort, ça joue plus clair. Le niveau, lui, vit dans [niveaux].
+  ///
+  /// **Des écarts, et non des valeurs absolues**, pour la même raison que
+  /// dans [Epaisseur] : régler la brillance déplace tout le monde ensemble,
+  /// et l'accompagnement garde toujours le même recul derrière la mélodie.
+  ///
+  /// Valeurs de départ, à retoucher à l'oreille : ce sont les seuls chiffres
+  /// à bouger si les compagnons couvrent la mélodie ou s'entendent à peine.
+  static const List<int> _reculs = [-20, -35];
 
   /// Vrai quand aucune voix n'est allumée.
   bool get vide => rangs.every((r) => r == null);
@@ -98,18 +101,20 @@ class Compagnons {
       ];
 
   /// Les voix à faire sonner pour une note donnée : la même hauteur qu'elle,
-  /// au décalage d'octave de chaque voix près.
+  /// au décalage d'octave de chaque voix près, et en retrait de la
+  /// [brillance] demandée.
   List<({int canal, int hauteur, int velocite})> voix(
     int hauteur,
-    int premierCanal,
-  ) =>
+    int premierCanal, {
+    int brillance = Epaisseur.velociteBase,
+  }) =>
       [
         for (int i = 0; i < maximum; i++)
           if (rangs[i] != null)
             (
               canal: premierCanal + i,
               hauteur: hauteur + 12 * decalages[i],
-              velocite: velocites[i],
+              velocite: (brillance + _reculs[i]).clamp(1, 127),
             ),
       ];
 
@@ -126,7 +131,7 @@ class Compagnons {
   Compagnons equilibresSous(int programmeMelodie, {int presence = 0}) {
     final Instrument? melodie = instrumentParProgramme(programmeMelodie);
 
-    return Compagnons._(rangs, decalages, velocites, [
+    return Compagnons._(rangs, decalages, [
       for (int i = 0; i < maximum; i++)
         _niveauEqualise(
           melodie,
@@ -173,7 +178,6 @@ class Compagnons {
               final Instrument voix => _decalagePour(voix, hauteurs),
             },
         ],
-        velocites,
       );
 
   /// Le décalage qui ramène le plus de notes dans la tessiture de [voix].

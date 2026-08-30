@@ -314,8 +314,9 @@ class RenduAudio {
       rang++;
 
       for (final voix in [
-        ...epaisseur.voix(sonnante.hauteur),
-        ...compagnons.voix(sonnante.hauteur, epaisseur.canaux),
+        ...epaisseur.voix(sonnante.hauteur, brillance: reglages.brillance),
+        ...compagnons.voix(sonnante.hauteur, epaisseur.canaux,
+            brillance: reglages.brillance),
       ]) {
         liste.add(_Evenement(debut, true, voix.hauteur, voix.canal,
             (voix.velocite + poids).clamp(1, 127)));

@@ -46,6 +46,24 @@ class Reglages {
   /// automatique (zéro) : négatif vers le discret, positif vers l'en-avant.
   final int accompagnement;
 
+  /// La brillance : le grain du son, du plus terne au plus éclatant.
+  ///
+  /// C'est la vélocité de la mélodie, et **rien que le timbre** — depuis que
+  /// le niveau passe par le volume de canal, frapper plus fort ne fait plus
+  /// jouer plus fort, seulement plus clair. Au-delà, ça devient métallique ;
+  /// en dessous, assourdi.
+  ///
+  /// Réglable parce qu'aucune valeur ne convient partout : le banc d'écoute a
+  /// montré que 100 gagne sur des enceintes de salon et 70 sur le
+  /// haut-parleur d'un téléphone. C'est donc un réglage d'appareil, que
+  /// l'hôte porte — le moteur, lui, s'en tient à [Epaisseur.velociteBase],
+  /// ce qu'il a toujours joué.
+  ///
+  /// Les voix d'accompagnement suivent, en gardant leur recul : l'équilibre
+  /// entre les voix ne dépend jamais de ce réglage, seul le grain d'ensemble
+  /// change.
+  final int brillance;
+
   /// La liberté de placement dans le temps : ce qui fait qu'on entend
   /// quelqu'un jouer plutôt qu'une machine.
   final Rubato rubato;
@@ -68,6 +86,7 @@ class Reglages {
     this.epaisseur = Epaisseur.simple,
     this.compagnons = Compagnons.aucun,
     this.accompagnement = 0,
+    this.brillance = Epaisseur.velociteBase,
     this.rubato = Rubato.mecanique,
     this.nuances = Nuances.uniformes,
     this.graine = 0,
