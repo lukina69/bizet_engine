@@ -19,7 +19,9 @@ library;
 
 export 'src/instruments/catalogue.dart';
 export 'src/instruments/compatibilite.dart';
+export 'src/instruments/egalisation.dart';
 export 'src/instruments/instrument.dart';
+export 'src/instruments/poids.dart';
 export 'src/model/armure.dart';
 export 'src/model/balancement.dart';
 export 'src/model/compagnons.dart';
@@ -32,6 +34,7 @@ export 'src/model/recette.dart';
 export 'src/model/reglages.dart';
 export 'src/model/rubato.dart';
 export 'src/model/tirage.dart';
+export 'src/model/voix.dart';
 export 'src/services/banque_assemblee.dart';
 export 'src/services/banque_reduite.dart';
 export 'src/services/export_musical.dart';

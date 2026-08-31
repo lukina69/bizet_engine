@@ -6,8 +6,10 @@ import 'instrument.dart';
 /// Ils débordent de la banque embarquée : celle-ci n'en porte plus que neuf,
 /// le reste se téléchargeant à la demande. Une sonorité absente d'ici n'est
 /// pas pour autant injouable — elle est simplement classée « neutre » face aux
-/// autres, et n'est pas égalisée quand elle accompagne. Source de vérité unique : le grisage des octaves,
-/// l'épaisseur et les suggestions d'associations lisent tous cette table.
+/// autres. **Elle est en revanche égalisée comme les autres** : le poids de
+/// chaque sonorité se mesure à part, pour les cent vingt (voir `poids.dart`).
+/// Source de vérité unique : le grisage des octaves, l'épaisseur et les
+/// suggestions d'associations lisent tous cette table.
 ///
 /// La palette est équilibrée à dessein : dix sons résonants, dix entretenus.
 /// La liste précédente penchait à quinze contre cinq, et ce déséquilibre
@@ -20,15 +22,13 @@ import 'instrument.dart';
 const List<Instrument> catalogue = [
   // Le piano à queue ne vient pas de la même banque que les autres : ceux de
   // MuseScore comptent sur des modulateurs que le moteur ignore, et n'en
-  // sortaient qu'un murmure. Celui-ci est repris de GeneralUser GS. Son poids
-  // a été mesuré contre le violon, dans les mêmes conditions que la table.
+  // sortaient qu'un murmure. Celui-ci est repris de GeneralUser GS.
   Instrument(
       programme: 0,
       nom: 'Stereo Grand',
       noteMin: 21,
       noteMax: 108,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -6.5,
       famille: Famille.piano),
   Instrument(
       programme: 4,
@@ -36,7 +36,6 @@ const List<Instrument> catalogue = [
       noteMin: 28,
       noteMax: 88,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -6.8,
       famille: Famille.clavierElectrique),
   Instrument(
       programme: 6,
@@ -44,7 +43,6 @@ const List<Instrument> catalogue = [
       noteMin: 29,
       noteMax: 89,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -14.3,
       famille: Famille.clavecin),
   Instrument(
       programme: 8,
@@ -52,7 +50,6 @@ const List<Instrument> catalogue = [
       noteMin: 48,
       noteMax: 96,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -12.7,
       famille: Famille.metallophone),
   Instrument(
       programme: 10,
@@ -60,7 +57,6 @@ const List<Instrument> catalogue = [
       noteMin: 72,
       noteMax: 96,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -21.8,
       famille: Famille.metallophone),
   Instrument(
       programme: 12,
@@ -68,7 +64,6 @@ const List<Instrument> catalogue = [
       noteMin: 36,
       noteMax: 96,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -12.7,
       famille: Famille.percussionBois),
   Instrument(
       programme: 19,
@@ -76,7 +71,6 @@ const List<Instrument> catalogue = [
       noteMin: 36,
       noteMax: 96,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -10.4,
       famille: Famille.orgue),
   Instrument(
       programme: 24,
@@ -84,7 +78,6 @@ const List<Instrument> catalogue = [
       noteMin: 40,
       noteMax: 83,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -12.8,
       famille: Famille.pince),
   Instrument(
       programme: 32,
@@ -92,7 +85,6 @@ const List<Instrument> catalogue = [
       noteMin: 28,
       noteMax: 55,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -5.4,
       famille: Famille.pince),
   Instrument(
       programme: 40,
@@ -100,7 +92,6 @@ const List<Instrument> catalogue = [
       noteMin: 55,
       noteMax: 93,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -8.7,
       famille: Famille.frotte),
   Instrument(
       programme: 42,
@@ -108,7 +99,6 @@ const List<Instrument> catalogue = [
       noteMin: 36,
       noteMax: 81,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -6.3,
       famille: Famille.frotte),
   Instrument(
       programme: 45,
@@ -116,7 +106,6 @@ const List<Instrument> catalogue = [
       noteMin: 36,
       noteMax: 93,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -13.8,
       famille: Famille.pince),
   Instrument(
       programme: 46,
@@ -124,7 +113,6 @@ const List<Instrument> catalogue = [
       noteMin: 24,
       noteMax: 103,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -8.4,
       famille: Famille.harpe),
   Instrument(
       programme: 48,
@@ -132,7 +120,6 @@ const List<Instrument> catalogue = [
       noteMin: 36,
       noteMax: 96,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -11.7,
       famille: Famille.frotte),
   Instrument(
       programme: 52,
@@ -140,7 +127,6 @@ const List<Instrument> catalogue = [
       noteMin: 43,
       noteMax: 84,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -12.6,
       famille: Famille.voix),
   Instrument(
       programme: 56,
@@ -148,7 +134,6 @@ const List<Instrument> catalogue = [
       noteMin: 52,
       noteMax: 82,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -8.7,
       famille: Famille.cuivre),
   Instrument(
       programme: 58,
@@ -156,7 +141,6 @@ const List<Instrument> catalogue = [
       noteMin: 28,
       noteMax: 65,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: 0.0,
       famille: Famille.cuivre),
   Instrument(
       programme: 60,
@@ -164,7 +148,6 @@ const List<Instrument> catalogue = [
       noteMin: 34,
       noteMax: 77,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -5.8,
       famille: Famille.cuivre),
   Instrument(
       programme: 71,
@@ -172,7 +155,6 @@ const List<Instrument> catalogue = [
       noteMin: 50,
       noteMax: 91,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -7.6,
       famille: Famille.bois),
   Instrument(
       programme: 73,
@@ -180,7 +162,6 @@ const List<Instrument> catalogue = [
       noteMin: 60,
       noteMax: 96,
       enveloppe: Enveloppe.entretenu,
-      poidsNaturel: -7.6,
       famille: Famille.bois),
   Instrument(
       programme: 104,
@@ -188,7 +169,6 @@ const List<Instrument> catalogue = [
       noteMin: 48,
       noteMax: 84,
       enveloppe: Enveloppe.resonant,
-      poidsNaturel: -13.8,
       famille: Famille.pince),
 ];
 

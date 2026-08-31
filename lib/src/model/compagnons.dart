@@ -1,5 +1,6 @@
 
 import '../instruments/catalogue.dart';
+import '../instruments/egalisation.dart';
 import '../instruments/instrument.dart';
 import 'epaisseur.dart';
 
@@ -32,7 +33,7 @@ class Compagnons {
   final List<int> decalages;
 
   /// Correction de **niveau** de chaque voix, en décibels, posée par
-  /// [equilibresSous]. Zéro ne corrige rien.
+  /// [equilibres]. Zéro ne corrige rien.
   ///
   /// Séparer le niveau de la vélocité n'est pas un raffinement : tant que
   /// l'égalisation passait par la vélocité, corriger le volume d'une voix
@@ -118,47 +119,37 @@ class Compagnons {
             ),
       ];
 
-  /// Les mêmes voix, égalisées sous l'instrument [programmeMelodie] : à
-  /// vélocité égale, les sonorités de la banque ne pèsent pas pareil — 22 dB
-  /// séparent le tuba de la boîte à musique. Chaque voix compense l'écart de
-  /// poids naturel entre elle et la mélodie, si bien que l'accompagnement se
-  /// place toujours au même retrait perçu, quel que soit le couple
-  /// d'instruments. Deux sonorités de même poids : rien ne change.
+  /// Les mêmes voix, ramenées au repère d'égalisation : à vélocité égale, les
+  /// sonorités de la banque ne pèsent pas pareil — 25 dB séparent le trombone
+  /// du bloc de bois. Chaque voix vise le même niveau que toutes les autres,
+  /// mélodie comprise, si bien que l'accompagnement garde son retrait quel que
+  /// soit le couple d'instruments.
+  ///
+  /// **Le repère est absolu, et non pris sous la mélodie.** La différence
+  /// compte : sous la mélodie, l'équilibre entre les deux voix était juste,
+  /// mais le volume du morceau entier sautait dès qu'on changeait de sonorité
+  /// principale. Voir [repereEgalisation].
   ///
   /// [presence] est la main gardée par l'utilisateur par-dessus cette
   /// égalisation : des crans de 4 dB, négatifs vers le discret, positifs
   /// vers l'en-avant. Zéro laisse l'équilibre automatique tel quel.
-  Compagnons equilibresSous(int programmeMelodie, {int presence = 0}) {
-    final Instrument? melodie = instrumentParProgramme(programmeMelodie);
-
-    return Compagnons._(rangs, decalages, [
-      for (int i = 0; i < maximum; i++)
-        _niveauEqualise(
-          melodie,
-          rangs[i] == null ? null : instrumentParProgramme(rangs[i]!),
-          presence,
-        ),
-    ]);
-  }
+  Compagnons equilibres({int presence = 0}) =>
+      Compagnons._(rangs, decalages, [
+        for (int i = 0; i < maximum; i++)
+          _niveauEqualise(rangs[i], presence),
+      ]);
 
   /// dB par cran de présence : deux crans font 8 dB, un vrai geste sans
   /// jamais devenir brutal.
   static const double _dbParCran = 4.0;
 
-  static double _niveauEqualise(
-    Instrument? melodie,
-    Instrument? voix,
-    int presence,
-  ) {
-    double db = presence * _dbParCran;
-    // L'égalisation ne sait rien corriger sans les deux poids ; la présence,
-    // elle, s'applique toujours. **Le catalogue ne connaît qu'une partie des
-    // sonorités téléchargeables** : pour les autres, seule la présence joue.
-    if (melodie != null && voix != null) {
-      db += melodie.poidsNaturel - voix.poidsNaturel;
-    }
-    return db;
-  }
+  /// La présence s'applique toujours ; l'égalisation seulement quand la banque
+  /// sait ce que pèse la sonorité. Elle le sait pour les cent vingt qu'elle
+  /// porte : le cas contraire ne se présente que pour une sonorité qu'elle n'a
+  /// pas du tout — et là, il n'y a rien à jouer, donc rien à égaliser.
+  static double _niveauEqualise(int? programmeVoix, int presence) =>
+      presence * _dbParCran +
+      (programmeVoix == null ? 0.0 : correctionEgalisation(programmeVoix));
 
   /// Les mêmes voix, calées sur un morceau : chacune se décale d'octave(s)
   /// si les [hauteurs] jouées tombent mal dans sa tessiture. Une flûte qui

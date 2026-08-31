@@ -2,9 +2,7 @@ import 'dart:math' as math;
 
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
-import '../model/balancement.dart';
-import '../model/compagnons.dart';
-import '../model/epaisseur.dart';
+import '../model/voix.dart';
 import '../model/melodie.dart';
 import '../model/reglages.dart';
 
@@ -190,23 +188,26 @@ class RenduAudio {
     _enAttente = null;
 
     final Melodie melodie = reglages.applique(partition);
-    final Epaisseur epaisseur = reglages.epaisseur;
-    final Compagnons compagnons = reglages.compagnons;
 
     final Synthesizer synth = _synth!;
     synth.reset();
 
-    // Chaque voix de l'épaisseur a son propre canal : tous doivent recevoir
-    // les mêmes réglages, sans quoi les doublages sonneraient d'un autre
-    // instrument et à une autre hauteur.
-    for (int canal = 0; canal < epaisseur.canaux; canal++) {
-      _preparerCanal(synth, canal, melodie.instrumentMidi);
-    }
-
-    // Les compagnons prennent les canaux suivants : c'est justement parce
-    // qu'ils sont à part qu'ils peuvent porter un autre timbre.
-    for (final voix in compagnons.canaux(epaisseur.canaux)) {
-      _preparerCanal(synth, voix.canal, voix.programme, niveau: voix.niveau);
+    // Chaque voix prend ses canaux à la suite : un par doublage d'épaisseur.
+    // Les doublages d'une même voix doivent recevoir les mêmes réglages, sans
+    // quoi ils sonneraient d'un autre instrument et à une autre hauteur ; deux
+    // voix différentes, au contraire, sont justement à part pour pouvoir
+    // porter d'autres timbres.
+    //
+    // Toutes sont égalisées, la principale comprise, et c'est ce qui fait
+    // qu'en changeant de sonorité l'utilisateur change de couleur sans changer
+    // de volume. Sans cela, essayer des timbres revenait à jouer du bouton de
+    // volume sans le savoir : vingt-cinq décibels séparent les extrêmes de la
+    // banque.
+    for (final VoixJouee jouee in reglages.voixJouees(melodie)) {
+      for (int i = 0; i < jouee.voix.canaux; i++) {
+        _preparerCanal(synth, jouee.premierCanal + i, jouee.programme,
+            niveau: jouee.niveau);
+      }
     }
 
     final List<_Evenement> evenements = _evenements(melodie, reglages);
@@ -297,30 +298,37 @@ class RenduAudio {
   /// compris, sinon les voix se désynchroniseraient. [compagnons] ajoute de
   /// même les voix à l'unisson.
   List<_Evenement> _evenements(Melodie melodie, Reglages reglages) {
-    final Balancement balancement = reglages.balancement;
-    final Epaisseur epaisseur = reglages.epaisseur;
-    final Compagnons compagnons = reglages.compagnonsCales(melodie);
+    // Le rubato appartient au chef : il se calcule une fois, et les voix le
+    // reçoivent toutes tel quel. Chacune l'articule ensuite à sa façon.
+    final List<({double debut, double fin})> respiration =
+        reglages.rubatoDe(melodie);
 
     final List<_Evenement> liste = [];
 
-    // Le poids de chaque note, aligné sur l'ordre des notes sonnantes.
-    final List<int> nuances = reglages.deltasNuances(melodie);
-    int rang = 0;
+    for (final VoixJouee jouee in reglages.voixJouees(melodie)) {
+      final Voix voix = jouee.voix;
 
-    for (final sonnante in reglages.notesSonnantes(melodie)) {
-      final double debut = balancement.applique(sonnante.debut);
-      final double fin = balancement.applique(sonnante.fin);
-      final int poids = rang < nuances.length ? nuances[rang] : 0;
-      rang++;
+      // Le poids de chaque note, aligné sur l'ordre des notes sonnantes.
+      final List<int> nuances =
+          reglages.deltasNuances(melodie, intensite: voix.nuances);
+      int rang = 0;
 
-      for (final voix in [
-        ...epaisseur.voix(sonnante.hauteur, brillance: reglages.brillance),
-        ...compagnons.voix(sonnante.hauteur, epaisseur.canaux,
-            brillance: reglages.brillance),
-      ]) {
-        liste.add(_Evenement(debut, true, voix.hauteur, voix.canal,
-            (voix.velocite + poids).clamp(1, 127)));
-        liste.add(_Evenement(fin, false, voix.hauteur, voix.canal, 0));
+      for (final sonnante in reglages.notesSonnantes(melodie,
+          articulation: voix.articulation, ecarts: respiration)) {
+        final double debut = voix.balancement.applique(sonnante.debut);
+        final double fin = voix.balancement.applique(sonnante.fin);
+        final int poids = rang < nuances.length ? nuances[rang] : 0;
+        rang++;
+
+        for (final doublage in voix.epaisseur.voix(
+          sonnante.hauteur + 12 * jouee.octave,
+          brillance: reglages.brillance - voix.recul,
+        )) {
+          final int canal = jouee.premierCanal + doublage.canal;
+          liste.add(_Evenement(debut, true, doublage.hauteur, canal,
+              (doublage.velocite + poids).clamp(1, 127)));
+          liste.add(_Evenement(fin, false, doublage.hauteur, canal, 0));
+        }
       }
     }
 

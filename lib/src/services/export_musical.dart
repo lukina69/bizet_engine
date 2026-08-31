@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart' show ArrayInt16;
 
+import '../instruments/egalisation.dart';
 import '../model/balancement.dart';
 import '../model/compagnons.dart';
 import '../model/epaisseur.dart';
@@ -54,9 +55,17 @@ class ExportMusical {
       microsecondes & 0xFF,
     ]);
 
-    // Choix de l'instrument, le même sur chaque canal de l'épaisseur.
+    // Choix de l'instrument, le même sur chaque canal de l'épaisseur, et le
+    // niveau qui amène la mélodie au repère d'égalisation — sans lui, le
+    // fichier exporté ne sonnerait pas comme l'écoute dès que la sonorité
+    // choisie n'est pas au milieu de la banque.
+    final double niveau = correctionEgalisation(melodie.instrumentMidi);
     for (int canal = 0; canal < epaisseur.canaux; canal++) {
       piste.addAll([0x00, 0xC0 | canal, melodie.instrumentMidi & 0x7F]);
+      if (niveau != 0) {
+        piste.addAll(
+            [0x00, 0xB0 | canal, 0x07, RenduAudio.volumeDeCanal(niveau)]);
+      }
     }
 
     // Les compagnons, eux, ont chacun le leur, sur les canaux suivants.

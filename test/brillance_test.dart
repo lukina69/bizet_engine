@@ -51,9 +51,9 @@ void main() {
 
     test('l\'égalisation des voix ajoutées reste sur le volume de canal', () {
       // La brillance touche l'attaque, l'égalisation le niveau : les deux ne
-      // doivent pas se marcher dessus. Le tuba sous la boîte à musique se
-      // calme autant, quelle que soit la brillance demandée.
-      final Compagnons egalises = Compagnons([58, null]).equilibresSous(10);
+      // doivent pas se marcher dessus. Le tuba se calme d'autant, quelle que
+      // soit la brillance demandée.
+      final Compagnons egalises = Compagnons([58, null]).equilibres();
       final double niveau = egalises.canaux(1).single.niveau;
 
       for (final int brillance in const [70, 100]) {

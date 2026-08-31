@@ -47,53 +47,79 @@ void main() {
     });
   });
 
-  group('equilibresSous : l\'accompagnement au même retrait perçu', () {
-    // L'égalisation corrige un NIVEAU, pas une attaque : elle agit désormais
-    // sur le volume de canal, et la vélocité ne bouge plus. Une voix mise en
-    // retrait garde donc le timbre qu'elle avait en avant.
+  group('equilibres : chaque voix ramenée au même niveau', () {
+    // L'égalisation corrige un NIVEAU, pas une attaque : elle agit sur le
+    // volume de canal, et la vélocité ne bouge plus. Une voix mise en retrait
+    // garde donc le timbre qu'elle avait en avant.
     double niveau(Compagnons c) => c.canaux(1).single.niveau;
 
-    test('deux sonorités de même poids : rien ne change', () {
-      // Violon et trompette pèsent pareil dans la banque.
-      final Compagnons egalises = Compagnons([56, null]).equilibresSous(40);
-      expect(niveau(egalises), 0);
-      expect(egalises.voix(60, 1).single.velocite, 60,
+    test('le repère est la médiane des poids de la banque', () {
+      // Ce chiffre-là a été choisi à l'oreille, au banc `banc_repere.dart`.
+      // Il n'est pas écrit en dur : une nouvelle mesure de la banque le
+      // déplacerait. Le test veille seulement à ce qu'il reste une médiane,
+      // c'est-à-dire à ce qu'autant de sonorités soient au-dessus qu'en
+      // dessous — sans quoi l'appli perdrait ou gagnerait du volume partout.
+      final int dessous =
+          poidsMesures.values.where((p) => p < repereEgalisation).length;
+      expect(dessous, closeTo(poidsMesures.length / 2, 1));
+    });
+
+    test('une sonorité forte descend, une sonorité douce monte', () {
+      // Le tuba est presque le plus fort de la banque, la boîte à musique
+      // parmi les plus discrètes. Ils se rejoignent.
+      expect(niveau(Compagnons([58, null]).equilibres()), lessThan(-8));
+      expect(niveau(Compagnons([10, null]).equilibres()), greaterThan(8));
+      expect(Compagnons([58, null]).equilibres().voix(60, 1).single.velocite,
+          Epaisseur.velociteBase - 20,
           reason: 'la vélocité ne sert plus au niveau');
     });
 
-    test('un compagnon fort sous une mélodie douce se calme', () {
-      // Le tuba (0 dB) sous la boîte à musique (-21,8 dB) : sans égalisation
-      // il l'écraserait quatorze fois.
-      final Compagnons egalises = Compagnons([58, null]).equilibresSous(10);
-      expect(niveau(egalises), lessThan(-15));
-      expect(egalises.voix(60, 1).single.velocite, 60);
+    test('le repère est absolu, il ne dépend pas de la mélodie', () {
+      // C'est là qu'est la différence avec l'ancienne égalisation, qui posait
+      // l'accompagnement sous la mélodie : le même compagnon était corrigé
+      // autrement selon la sonorité principale, et le volume du morceau
+      // sautait dès qu'on changeait celle-ci.
+      final double seul = niveau(Compagnons([56, null]).equilibres());
+      expect(seul, closeTo(-1.1, 0.05));
+      expect(Compagnons([56, 40]).equilibres().canaux(1).first.niveau, seul,
+          reason: 'la voisine ne change rien non plus');
     });
 
-    test('un compagnon doux sous une mélodie forte s\'affirme', () {
-      // La boîte à musique sous le tuba : elle monte.
-      final Compagnons egalises = Compagnons([10, null]).equilibresSous(58);
-      expect(niveau(egalises), greaterThan(15));
+    test('deux sonorités de même poids reçoivent la même correction', () {
+      // Violon et trompette pèsent pareil dans la banque.
+      expect(niveau(Compagnons([56, null]).equilibres()),
+          niveau(Compagnons([40, null]).equilibres()));
     });
 
-    test('une sonorité hors catalogue ne se corrige pas', () {
-      expect(niveau(Compagnons([99, null]).equilibresSous(40)), 0);
-      expect(niveau(Compagnons([73, null]).equilibresSous(99)), 0,
-          reason: 'mélodie inconnue : on ne devine pas');
+    test('une sonorité que le catalogue ignore est égalisée quand même', () {
+      // Le catalogue ne décrit qu'une vingtaine de sonorités, mais les poids
+      // sont mesurés pour les cent vingt : l'égalisation ne s'arrête donc
+      // plus au bord du catalogue. Elle s'y arrêtait, et c'était un silence
+      // — la plupart des couples d'instruments n'était pas corrigée sans que
+      // rien ne le dise.
+      expect(instrumentParProgramme(99), isNull,
+          reason: 'l\'atmosphère n\'est pas décrite par le catalogue');
+      expect(niveau(Compagnons([99, null]).equilibres()), closeTo(-0.1, 0.05));
+    });
+
+    test('une sonorité absente de la banque ne se corrige pas', () {
+      // Les huit effets sonores (120 à 127) ne sont pas publiés : rien à
+      // jouer, donc rien à peser, donc rien à corriger — plutôt qu'une
+      // correction devinée.
+      expect(poidsNaturel(120), isNull);
+      expect(niveau(Compagnons([120, null]).equilibres()), 0);
     });
 
     test('la présence garde la main par-dessus l\'équilibre', () {
-      // Violon et trompette pèsent pareil : à zéro rien ne bouge, et chaque
-      // cran de 4 dB pousse ou retient la voix ajoutée.
       final Compagnons voix = Compagnons([56, null]);
+      final double equilibre = niveau(voix.equilibres());
 
-      expect(niveau(voix.equilibresSous(40)), 0);
-      expect(niveau(voix.equilibresSous(40, presence: -2)), -8);
-      expect(niveau(voix.equilibresSous(40, presence: 2)), 8);
+      expect(niveau(voix.equilibres(presence: -2)), closeTo(equilibre - 8, 1e-9));
+      expect(niveau(voix.equilibres(presence: 2)), closeTo(equilibre + 8, 1e-9));
     });
 
-    test('la présence s\'applique même sans poids connus', () {
-      final Compagnons voix = Compagnons([99, null]);
-      expect(niveau(voix.equilibresSous(98, presence: 2)), 8,
+    test('la présence s\'applique même sans poids connu', () {
+      expect(niveau(Compagnons([120, null]).equilibres(presence: 2)), 8,
           reason: 'l\'égalisation ne sait rien, la main de l\'utilisateur si');
     });
 
@@ -110,12 +136,11 @@ void main() {
     test('l\'égalisation n\'écrase pas le calage d\'octave', () {
       // Flûte sur ligne grave : elle monte d'une octave ET s'égalise.
       final Compagnons cales =
-          Compagnons([73, null]).calesSur([48, 52, 55]).equilibresSous(58);
+          Compagnons([73, null]).calesSur([48, 52, 55]).equilibres();
       expect(cales.decalages, [1, 0]);
       expect(cales.voix(48, 1).single.hauteur, 60);
-      expect(niveau(cales), greaterThan(0),
-          reason: 'la flûte s\'affirme sous le tuba');
-      expect(cales.voix(48, 1).single.velocite, 60,
+      expect(niveau(cales), closeTo(-2.2, 0.05));
+      expect(cales.voix(48, 1).single.velocite, Epaisseur.velociteBase - 20,
           reason: 'et garde son attaque : le niveau seul a bougé');
     });
   });

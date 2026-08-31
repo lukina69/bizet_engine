@@ -33,6 +33,10 @@ enum Registre { grave, medium, aigu }
 
 /// Ce que le catalogue sait d'un instrument : sa sonorité, sa tessiture
 /// musicale, et de quoi prédire ses bonnes associations.
+///
+/// Le poids naturel n'est pas ici : il se mesure pour les cent vingt
+/// sonorités de la banque, dont le catalogue n'en décrit qu'une poignée. Il
+/// vit donc dans sa propre table — voir `poidsNaturel` dans `poids.dart`.
 class Instrument {
   /// Numéro de programme General MIDI, indexé à partir de 0,
   /// tel qu'attendu par dart_melty_soundfont.
@@ -52,13 +56,6 @@ class Instrument {
   final Enveloppe enveloppe;
   final Famille famille;
 
-  /// Poids naturel de la sonorité, en dB, relatif à la plus forte de la
-  /// banque (le tuba : 0). À vélocité égale, les presets ne pèsent pas
-  /// pareil — 22 dB séparent le tuba de la boîte à musique — et c'est lui
-  /// qui permet d'égaliser les voix ajoutées. Mesuré par
-  /// `tool/mesure_poids.dart` : à refaire à chaque nouvelle banque.
-  final double poidsNaturel;
-
   const Instrument({
     required this.programme,
     required this.nom,
@@ -66,7 +63,6 @@ class Instrument {
     required this.noteMax,
     required this.enveloppe,
     required this.famille,
-    required this.poidsNaturel,
   });
 
   int get centre => (noteMin + noteMax) ~/ 2;
