@@ -3,11 +3,8 @@ import 'dart:typed_data';
 
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart' show ArrayInt16;
 
-import '../instruments/egalisation.dart';
-import '../model/balancement.dart';
-import '../model/compagnons.dart';
-import '../model/epaisseur.dart';
 import '../model/melodie.dart';
+import '../model/voix.dart';
 import '../model/reglages.dart';
 import 'rendu_audio.dart';
 
@@ -38,12 +35,12 @@ class ExportMusical {
     Reglages reglages = const Reglages(),
   }) {
     final Melodie melodie = reglages.applique(partition);
-    final Epaisseur epaisseur = reglages.epaisseur;
-    // Les compagnons **calés** : ce sont eux que les notes suivront plus bas,
-    // et eux seuls qui portent le niveau de chaque voix. Prendre les
-    // compagnons bruts ici enverrait le fichier avec des canaux muets de
-    // toute correction.
-    final Compagnons compagnons = reglages.compagnonsCales(melodie);
+    // Les voix **résolues** : ce sont elles que les notes suivront plus bas,
+    // et elles seules qui portent le niveau et l'octave de chacune. C'est la
+    // même liste que lit le rendu — sans quoi le fichier exporté finirait par
+    // ne plus sonner comme l'écoute, et personne ne saurait dire quand ça a
+    // commencé.
+    final List<VoixJouee> jouees = reglages.voixJouees(melodie);
     final List<int> piste = [];
 
     // Tempo : nombre de microsecondes par noire.
@@ -55,32 +52,24 @@ class ExportMusical {
       microsecondes & 0xFF,
     ]);
 
-    // Choix de l'instrument, le même sur chaque canal de l'épaisseur, et le
-    // niveau qui amène la mélodie au repère d'égalisation — sans lui, le
-    // fichier exporté ne sonnerait pas comme l'écoute dès que la sonorité
-    // choisie n'est pas au milieu de la banque.
-    final double niveau = correctionEgalisation(melodie.instrumentMidi);
-    for (int canal = 0; canal < epaisseur.canaux; canal++) {
-      piste.addAll([0x00, 0xC0 | canal, melodie.instrumentMidi & 0x7F]);
-      if (niveau != 0) {
-        piste.addAll(
-            [0x00, 0xB0 | canal, 0x07, RenduAudio.volumeDeCanal(niveau)]);
-      }
-    }
-
-    // Les compagnons, eux, ont chacun le leur, sur les canaux suivants.
-    for (final voix in compagnons.canaux(epaisseur.canaux)) {
-      piste.addAll([0x00, 0xC0 | voix.canal, voix.programme & 0x7F]);
-      // Le niveau de la voix voyage avec elle : un fichier MIDI ouvert
-      // ailleurs doit garder l'équilibre qu'on a entendu ici. Il passe par le
-      // volume de canal, comme au rendu, et non par la vélocité.
-      if (voix.niveau != 0) {
-        piste.addAll([
-          0x00,
-          0xB0 | voix.canal,
-          0x07,
-          RenduAudio.volumeDeCanal(voix.niveau),
-        ]);
+    // Chaque voix pose sa sonorité sur ses canaux, et son niveau avec.
+    //
+    // Le niveau voyage avec la voix : un fichier MIDI ouvert ailleurs doit
+    // garder l'équilibre qu'on a entendu ici. Il passe par le volume de canal,
+    // comme au rendu, et non par la vélocité — sans quoi baisser une voix
+    // l'assourdirait au lieu de la mettre en retrait.
+    for (final VoixJouee jouee in jouees) {
+      for (int i = 0; i < jouee.voix.canaux; i++) {
+        final int canal = jouee.premierCanal + i;
+        piste.addAll([0x00, 0xC0 | canal, jouee.programme & 0x7F]);
+        if (jouee.niveau != 0) {
+          piste.addAll([
+            0x00,
+            0xB0 | canal,
+            0x07,
+            RenduAudio.volumeDeCanal(jouee.niveau),
+          ]);
+        }
       }
     }
 
@@ -135,32 +124,39 @@ class ExportMusical {
   /// Débuts et fins de notes, en tics, triés dans le temps. Les mesures
   /// s'enchaînent sur leur durée déclarée, silences de fin compris.
   List<_Evenement> _evenements(Melodie melodie, Reglages reglages) {
-    final Balancement balancement = reglages.balancement;
-    final Epaisseur epaisseur = reglages.epaisseur;
-    final Compagnons compagnons = reglages.compagnonsCales(melodie);
+    // Le rubato appartient au chef : il se calcule une fois, et les voix le
+    // reçoivent toutes tel quel. Chacune l'articule ensuite à sa façon.
+    final List<({double debut, double fin})> respiration =
+        reglages.rubatoDe(melodie);
 
     final List<_Evenement> liste = [];
 
-    // Le poids de chaque note, aligné sur l'ordre des notes sonnantes.
-    final List<int> nuances = reglages.deltasNuances(melodie);
-    int rang = 0;
+    for (final VoixJouee jouee in reglages.voixJouees(melodie)) {
+      final Voix voix = jouee.voix;
 
-    for (final sonnante in reglages.notesSonnantes(melodie)) {
-      final int ticDebut =
-          (balancement.applique(sonnante.debut) * ticsParNoire).round();
-      final int ticFin =
-          (balancement.applique(sonnante.fin) * ticsParNoire).round();
-      final int poids = rang < nuances.length ? nuances[rang] : 0;
-      rang++;
+      // Le poids de chaque note, aligné sur l'ordre des notes sonnantes.
+      final List<int> nuances =
+          reglages.deltasNuances(melodie, intensite: voix.nuances);
+      int rang = 0;
 
-      for (final voix in [
-        ...epaisseur.voix(sonnante.hauteur, brillance: reglages.brillance),
-        ...compagnons.voix(sonnante.hauteur, epaisseur.canaux,
-            brillance: reglages.brillance),
-      ]) {
-        liste.add(_Evenement(ticDebut, true, voix.hauteur, voix.canal,
-            (voix.velocite + poids).clamp(1, 127)));
-        liste.add(_Evenement(ticFin, false, voix.hauteur, voix.canal, 0));
+      for (final sonnante in reglages.notesSonnantes(melodie,
+          articulation: voix.articulation, ecarts: respiration)) {
+        final int ticDebut =
+            (voix.balancement.applique(sonnante.debut) * ticsParNoire).round();
+        final int ticFin =
+            (voix.balancement.applique(sonnante.fin) * ticsParNoire).round();
+        final int poids = rang < nuances.length ? nuances[rang] : 0;
+        rang++;
+
+        for (final doublage in voix.epaisseur.voix(
+          sonnante.hauteur + 12 * jouee.octave,
+          brillance: reglages.brillance - voix.recul,
+        )) {
+          final int canal = jouee.premierCanal + doublage.canal;
+          liste.add(_Evenement(ticDebut, true, doublage.hauteur, canal,
+              (doublage.velocite + poids).clamp(1, 127)));
+          liste.add(_Evenement(ticFin, false, doublage.hauteur, canal, 0));
+        }
       }
     }
 
