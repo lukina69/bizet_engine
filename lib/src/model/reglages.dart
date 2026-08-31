@@ -43,9 +43,21 @@ class Reglages {
   /// Les instruments qui doublent la mélodie à l'unisson.
   final Compagnons compagnons;
 
-  /// La présence de l'accompagnement, en crans de 4 dB autour de l'équilibre
-  /// automatique (zéro) : négatif vers le discret, positif vers l'en-avant.
-  final int accompagnement;
+  /// Le volume de chaque voix, en crans de 4 dB autour du repère
+  /// d'égalisation. Zéro laisse l'équilibre automatique tel quel, négatif met
+  /// la voix en retrait.
+  ///
+  /// Il remplace l'ancienne « présence de l'accompagnement », qui était un
+  /// seul bouton pour les deux voix ajoutées et n'en offrait aucun à la voix
+  /// principale. Maintenant que toutes les voix visent le même repère, c'est
+  /// bien à chacune d'avoir le sien : c'est la seule main qui reste sur
+  /// l'équilibre, et c'est elle qui rattrape ce que la mesure ne voit pas —
+  /// le poids d'une sonorité se mesure sur une note tenue, pas sur une phrase,
+  /// et une percussion s'y trouve toujours sous-estimée.
+  ///
+  /// Toujours trois entrées, dans l'ordre des rangs ; une liste plus courte se
+  /// complète de zéros.
+  final List<int> volumes;
 
   /// La brillance : le grain du son, du plus terne au plus éclatant.
   ///
@@ -86,7 +98,7 @@ class Reglages {
     this.balancement = const Balancement(),
     this.epaisseur = Epaisseur.simple,
     this.compagnons = Compagnons.aucun,
-    this.accompagnement = 0,
+    this.volumes = const [0, 0, 0],
     this.brillance = Epaisseur.velociteBase,
     this.rubato = Rubato.mecanique,
     this.nuances = Nuances.uniformes,
@@ -120,6 +132,7 @@ class Reglages {
   List<Voix> get voix => [
         Voix(
           instrument: instrument,
+          volume: volumeDe(0),
           articulation: articulation,
           balancement: balancement,
           epaisseur: epaisseur,
@@ -131,10 +144,14 @@ class Reglages {
             articulation: articulation,
             balancement: balancement,
             nuances: nuances,
-            volume: accompagnement,
+            volume: volumeDe(rang + 1),
             recul: _reculsAjoutees[rang],
           ),
       ];
+
+  /// Le volume du rang demandé, zéro à défaut : un fichier de travail écrit
+  /// par une autre version ne peut pas fabriquer un objet bancal.
+  int volumeDe(int rang) => rang < volumes.length ? volumes[rang] : 0;
 
   /// Le retrait d'attaque des voix ajoutées, hérité de l'ancien modèle.
   /// Voir [Voix.recul] : il est appelé à disparaître.
@@ -198,16 +215,6 @@ class Reglages {
         // de boucle. Le calcul, lui, sait déjà en produire d'autres.
         indexCycle: 0,
       );
-
-  /// Les compagnons calés sur ce morceau : chaque voix ajoutée prend le
-  /// décalage d'octave qui la met dans sa bonne tessiture, et le niveau qui
-  /// l'amène au repère d'égalisation. À calculer sur la
-  /// mélodie **telle qu'elle est jouée** (après [applique]) : le compagnon
-  /// suit le morceau quand on le déplace ou qu'on change sa sonorité.
-  Compagnons compagnonsCales(Melodie melodie) => compagnons.calesSur([
-        for (final mesure in melodie.mesures)
-          for (final note in mesure.notes) note.hauteur,
-      ]).equilibres(presence: accompagnement);
 
   /// L'écart de vélocité de chaque note, dans l'ordre de [notesSonnantes] :
   /// accent métrique et marche de poids. Les voix d'une même note — mélodie,

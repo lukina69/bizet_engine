@@ -81,7 +81,8 @@ void main() {
         expect(r.rubato, Rubato.mecanique);
         expect(r.nuances, Nuances.uniformes);
         expect(r.epaisseur, Epaisseur.simple);
-        expect(r.accompagnement, -1);
+        expect(r.volumes, [0, -1, -1],
+            reason: 'le même cran aux deux voix ajoutées, la principale au repère');
       }
     });
 
@@ -92,7 +93,8 @@ void main() {
         final Reglages r = tirage.prochain().reglages;
         expect(r.tempo, inInclusiveRange(90, 180));
         expect(r.octave, inInclusiveRange(-1, 1));
-        expect(r.accompagnement, inInclusiveRange(-3, 0));
+        expect(r.volumeDe(1), inInclusiveRange(-3, 0));
+        expect(r.volumeDe(2), r.volumeDe(1));
         // L'articulation part en multiplicateur de durée, pas en pourcentage.
         expect(r.articulation, inInclusiveRange(0.57, 1.05));
       }

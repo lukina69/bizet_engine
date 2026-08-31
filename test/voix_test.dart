@@ -23,7 +23,7 @@ void main() {
       instrument: 0, // piano
       epaisseur: Epaisseur.large, // trois canaux
       compagnons: Compagnons([73, 42]), // flûte, violoncelle
-      accompagnement: -1,
+      volumes: const [0, -1, -1],
     );
 
     test('chaque voix prend ses canaux à la suite', () {
@@ -43,7 +43,7 @@ void main() {
         instrument: 0,
         epaisseur: Epaisseur.large,
         compagnons: Compagnons([null, 42]),
-        accompagnement: -1,
+        volumes: const [0, -1, -1],
       ).voixJouees(_morceau());
 
       expect(jouees.map((j) => j.rang), [0, 2]);
@@ -61,6 +61,34 @@ void main() {
           closeTo(correctionEgalisation(73) - Voix.dbParCran, 1e-9));
       expect(jouees[2].niveau,
           closeTo(correctionEgalisation(42) - Voix.dbParCran, 1e-9));
+    });
+
+    test('chaque voix a son volume, la principale comprise', () {
+      // L'ancien bouton « accompagnement » valait pour les deux voix ajoutées
+      // à la fois, et n'offrait rien à la principale. C'est cette main-là qui
+      // rattrape ce que la mesure ne voit pas : le poids se mesure sur une
+      // note tenue, et une percussion s'y trouve toujours sous-estimée.
+      final List<VoixJouee> jouees = Reglages(
+        instrument: 0,
+        compagnons: Compagnons([73, 42]),
+        volumes: const [-1, 0, -3],
+      ).voixJouees(_morceau());
+
+      expect(jouees[0].niveau,
+          closeTo(correctionEgalisation(0) - Voix.dbParCran, 1e-9));
+      expect(jouees[1].niveau, closeTo(correctionEgalisation(73), 1e-9),
+          reason: 'celle-ci reste au repère');
+      expect(jouees[2].niveau,
+          closeTo(correctionEgalisation(42) - 3 * Voix.dbParCran, 1e-9));
+    });
+
+    test('un volume manquant vaut zéro plutôt que de faire tomber', () {
+      // Un fichier de travail écrit par une autre version ne doit pas
+      // fabriquer un objet bancal.
+      const Reglages court = Reglages(volumes: [-2]);
+      expect(court.volumeDe(0), -2);
+      expect(court.volumeDe(1), 0);
+      expect(court.volumeDe(2), 0);
     });
 
     test('les voix ajoutées se calent, la principale reste où elle est', () {

@@ -129,7 +129,7 @@ String _resume(Boucle boucle, List<String> noms) {
       ' · ${r.balancement.swing.name} · rubato ${r.rubato.name}'
       ' · nuances ${r.nuances.name} · ${r.epaisseur.name}'
       ' · octave ${r.octave} · $mode'
-      ' · accomp. ${r.accompagnement}'
+      ' · volumes ${r.volumes.join("/")}'
       ' · ${boucle.secondes.toStringAsFixed(1)} s';
 }
 
