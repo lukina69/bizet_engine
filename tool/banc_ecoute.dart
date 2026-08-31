@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import 'package:bizet_engine/bizet_engine.dart';
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
+import 'banc_commun.dart';
+
 /// Le banc d'écoute qui doit trancher deux questions restées en l'air :
 /// **quelle vélocité** pour la mélodie principale, et **l'égalisation par la
 /// mesure tient-elle à l'oreille**.
@@ -58,16 +60,14 @@ Future<void> main(List<String> arguments) async {
 
   final Map<int, double> rmsPublies = _rmsPublies(source);
 
-  final Melodie passage = _passage();
-  final List<_Evenement> evenements = _evenements(passage);
-  final double secondesParTemps = 60.0 / passage.tempo;
-  final double duree =
-      passage.mesures.fold(0.0, (somme, m) => somme + m.dureeEffective) *
-          secondesParTemps;
-  final int echantillons = ((duree + _queue) * _frequence).ceil();
+  final Melodie morceau = passage();
+  final List<Evenement> notes = evenements(morceau);
+  final double secondesParTemps = 60.0 / morceau.tempo;
+  final double duree = secondes(morceau);
+  final int total = echantillons(morceau);
 
-  stdout.writeln('Passage : « ${passage.titre} », '
-      '${passage.mesures.length} mesures à ${passage.tempo} à la noire, '
+  stdout.writeln('Passage : « ${morceau.titre} », '
+      '${morceau.mesures.length} mesures à ${morceau.tempo} à la noire, '
       '${duree.toStringAsFixed(1)} s.');
   stdout.writeln('');
 
@@ -88,25 +88,30 @@ Future<void> main(List<String> arguments) async {
     final ByteData donnees = ByteData.view(
         octets.buffer, octets.offsetInBytes, octets.lengthInBytes);
 
-    final Synthesizer synth = _synthetiseur(donnees);
     rendus[programme] = {};
     puissances[programme] = {};
 
     for (final int velocite in _velocites) {
-      final Int16List son = _jouer(synth, programme, evenements, velocite,
-          secondesParTemps, echantillons);
+      final Int16List son = jouer(donnees, programme, notes, velocite,
+          secondesParTemps: secondesParTemps, total: total);
       rendus[programme]![velocite] = son;
-      puissances[programme]![velocite] = _puissance(son);
+      puissances[programme]![velocite] = puissance(son);
     }
 
     // Le banc dessine ses propres événements plutôt que d'appeler le moteur,
     // faute d'y pouvoir changer la vélocité. Il doit donc prouver qu'il joue
-    // la même chose : à 80, son rendu doit être celui du moteur, échantillon
-    // pour échantillon. Si ce n'est plus vrai, le banc ment.
+    // la même chose. Le témoin est rendu à part, avec la correction
+    // d'égalisation que le moteur applique désormais à toute sonorité : les
+    // extraits du banc, eux, n'en veulent pas — ils comparent des vélocités,
+    // et une correction identique partout ne ferait que les rapetisser.
     final RenduAudio moteur = RenduAudio()..chargerSoundFont(donnees);
-    final bool fidele = _identiques(
-      rendus[programme]![Epaisseur.velociteBase]!,
-      moteur.rendre(passage, reglages: Reglages(instrument: programme)),
+    final bool fidele = identiqueAuMoteur(
+      jouer(donnees, programme, notes, Epaisseur.velociteBase,
+          secondesParTemps: secondesParTemps,
+          total: total,
+          volumeDeCanal:
+              RenduAudio.volumeDeCanal(correctionEgalisation(programme))),
+      moteur.rendre(morceau, reglages: Reglages(instrument: programme)),
     );
 
     stdout.writeln('$etiquette — ${_velocites.length} vélocités rendues'
@@ -150,8 +155,8 @@ Future<void> main(List<String> arguments) async {
 
   for (final bool corrige in const [false, true]) {
     for (final (int programme, _, String cle) in _sonorites) {
-      final double db =
-          corrige ? _db(reperePublie / rmsPublies[programme]!) : 0.0;
+      final double correction =
+          corrige ? db(reperePublie / rmsPublies[programme]!) : 0.0;
       extraits.add(_Extrait(
         nom: 'b-${corrige ? 'apres' : 'avant'}-$cle.wav',
         // Tout « avant » et tout « après » partagent un gain : sinon chacun
@@ -162,9 +167,9 @@ Future<void> main(List<String> arguments) async {
         instrument: cle,
         variante: corrige ? 'apres' : 'avant',
         son: rendus[programme]![Epaisseur.velociteBase]!,
-        gain: math.pow(10, db / 20).toDouble(),
-        correction: db,
-        volumeDeCanal: corrige ? RenduAudio.volumeDeCanal(db) : null,
+        gain: math.pow(10, correction / 20).toDouble(),
+        correction: correction,
+        volumeDeCanal: corrige ? RenduAudio.volumeDeCanal(correction) : null,
       ));
     }
   }
@@ -176,7 +181,7 @@ Future<void> main(List<String> arguments) async {
   // justement ce qu'on cherchait à entendre.
   final Map<String, double> pics = {};
   for (final _Extrait e in extraits) {
-    final int p = _pic(e.son, e.gain);
+    final int p = pic(e.son, e.gain);
     if (p > (pics[e.groupe] ?? 0)) pics[e.groupe] = p.toDouble();
   }
   final double sortieMax = 32767 * math.pow(10, -1 / 20).toDouble();
@@ -187,8 +192,8 @@ Future<void> main(List<String> arguments) async {
   final ExportMusical export = ExportMusical();
   for (final _Extrait e in extraits) {
     File('${sortie.path}/${e.nom}').writeAsBytesSync(
-      export.versWav(_ajuster(e.son, e.gain * makeup[e.groupe]!),
-          frequence: _frequence),
+      export.versWav(ajuster(e.son, e.gain * makeup[e.groupe]!),
+          frequence: frequence),
       flush: true,
     );
   }
@@ -199,7 +204,7 @@ Future<void> main(List<String> arguments) async {
   // sous le nom d'« écart mesuré ».
   final Map<String, double> repereMesure = {};
   for (final _Extrait e in extraits) {
-    final double niveau = _puissance(e.son) * e.gain;
+    final double niveau = puissance(e.son) * e.gain;
     final String cle = '${e.serie}-${e.serie == 'a' ? e.instrument : e.variante}';
     if (niveau < (repereMesure[cle] ?? double.infinity)) {
       repereMesure[cle] = niveau;
@@ -208,10 +213,10 @@ Future<void> main(List<String> arguments) async {
 
   final Map<String, Object?> manifeste = {
     'passage': {
-      'titre': passage.titre,
-      'source': passage.source,
-      'tempo': passage.tempo,
-      'mesures': passage.mesures.length,
+      'titre': morceau.titre,
+      'source': morceau.source,
+      'tempo': morceau.tempo,
+      'mesures': morceau.mesures.length,
       'duree': double.parse(duree.toStringAsFixed(2)),
     },
     'velocites': _velocites,
@@ -232,10 +237,10 @@ Future<void> main(List<String> arguments) async {
           'serie': e.serie,
           'instrument': e.instrument,
           'variante': e.variante,
-          'miseANiveau': _arrondi(_db(e.gain)),
-          'correction': e.correction == null ? null : _arrondi(e.correction!),
+          'miseANiveau': arrondi(db(e.gain)),
+          'correction': e.correction == null ? null : arrondi(e.correction!),
           'volumeDeCanal': e.volumeDeCanal,
-          'mesure': _arrondi(_db(_puissance(e.son) *
+          'mesure': arrondi(db(puissance(e.son) *
               e.gain /
               repereMesure[
                   '${e.serie}-${e.serie == 'a' ? e.instrument : e.variante}']!)),
@@ -258,10 +263,6 @@ Future<void> main(List<String> arguments) async {
     ..writeln('À ouvrir : ${sortie.path}/banc-ecoute.html');
 }
 
-/// Qualité de rendu : celle de l'application, pas une pour la route. Juger un
-/// timbre sur un rendu dégradé ne prouverait rien de ce qu'on entendra.
-const int _frequence = RenduAudio.frequence;
-
 /// Les paliers à départager. Cinq, sans demi-teinte : la vélocité choisit une
 /// couche d'échantillons, pas un point sur une pente.
 const List<int> _velocites = [60, 70, 80, 90, 100];
@@ -278,157 +279,6 @@ const List<(int, String, String)> _sonorites = [
   (57, 'Trombone', 'trombone'),
 ];
 
-/// La queue laissée aux notes pour s'éteindre, comme dans le moteur.
-const double _queue = 1.0;
-
-/// Le passage : les six premières mesures de la vocalise de Franz Abt, sa
-/// ligne de chant seule.
-///
-/// Monophonique à dessein — c'est le périmètre de Bizet, et un timbre ne
-/// s'examine pas sous une texture. La phrase tient tout ce qu'il faut
-/// entendre : des tenues longues pour le corps du son, des notes brèves pour
-/// l'attaque, un silence pour la chute, et une montée du do central au si.
-Melodie _passage() => Melodie(
-      titre: 'Vocalise nº 1 — six mesures',
-      source: 'Franz Abt, Vocalise nº 1 — Mutopia, domaine public',
-      tempo: 110,
-      instrumentMidi: 0,
-      mesures: [
-        _mesure([(64, 2.0), (62, 2.0)]),
-        _mesure([(60, 4.0)]),
-        _mesure([(62, 2.0), (64, 1.0), (65, 1.0)]),
-        _mesure([(64, 2.0)]), // suivi d'un silence : d'où la durée déclarée
-        _mesure([(67, 2.0), (69, 2.0)]),
-        _mesure([(71, 4.0)]),
-      ],
-    );
-
-/// Une mesure de quatre temps, les notes posées à la suite.
-Mesure _mesure(List<(int, double)> notes) {
-  final List<Note> posees = [];
-  double position = 0;
-  for (final (int hauteur, double duree) in notes) {
-    posees.add(Note(hauteur: hauteur, duree: duree, position: position));
-    position += duree;
-  }
-  return Mesure(notes: posees, duree: 4.0);
-}
-
-/// Les débuts et fins de notes, dans l'ordre du temps.
-///
-/// Le placement vient du moteur ([Reglages.notesSonnantes]) et non d'un calcul
-/// refait ici : articulation, respirations et gardes par hauteur sont ainsi
-/// exactement celles de l'application. Seule la vélocité est laissée ouverte,
-/// puisque c'est ce que le banc met en question.
-List<_Evenement> _evenements(Melodie passage) {
-  const Reglages reglages = Reglages();
-  final List<_Evenement> liste = [];
-  for (final sonnante in reglages.notesSonnantes(passage)) {
-    liste
-      ..add(_Evenement(sonnante.debut, true, sonnante.hauteur))
-      ..add(_Evenement(sonnante.fin, false, sonnante.hauteur));
-  }
-  // À instant égal on éteint avant d'allumer, comme le moteur : deux notes de
-  // même hauteur qui se suivent ne se marchent pas dessus.
-  liste.sort((a, b) {
-    final int parTemps = a.temps.compareTo(b.temps);
-    return parTemps != 0 ? parTemps : (a.debut ? 1 : -1);
-  });
-  return liste;
-}
-
-Synthesizer _synthetiseur(ByteData banque) => Synthesizer.loadByteData(
-      banque,
-      SynthesizerSettings(
-        sampleRate: _frequence,
-        blockSize: 64,
-        maximumPolyphony: 64,
-        enableReverbAndChorus: true,
-      ),
-    );
-
-/// Joue le passage sur une sonorité, à une vélocité donnée.
-Int16List _jouer(
-  Synthesizer synth,
-  int programme,
-  List<_Evenement> evenements,
-  int velocite,
-  double secondesParTemps,
-  int echantillons,
-) {
-  synth.reset();
-  synth.processMidiMessage(
-      channel: 0, command: 0xC0, data1: programme, data2: 0);
-
-  final ArrayInt16 tampon = ArrayInt16.zeros(numShorts: echantillons);
-  int position = 0;
-
-  for (final _Evenement e in evenements) {
-    final int cible = (e.temps * secondesParTemps * _frequence)
-        .round()
-        .clamp(0, echantillons);
-    if (cible > position) {
-      synth.renderMonoInt16(tampon, offset: position, length: cible - position);
-      position = cible;
-    }
-    if (e.debut) {
-      synth.noteOn(channel: 0, key: e.hauteur, velocity: velocite);
-    } else {
-      synth.noteOff(channel: 0, key: e.hauteur);
-    }
-  }
-  if (position < echantillons) {
-    synth.renderMonoInt16(tampon,
-        offset: position, length: echantillons - position);
-  }
-
-  return tampon.bytes.buffer
-      .asInt16List(tampon.bytes.offsetInBytes, echantillons);
-}
-
-/// Puissance perçue d'un rendu : sa valeur efficace. C'est elle, et non le
-/// pic, qui dit à quel point une chose sonne fort.
-double _puissance(Int16List son) {
-  double somme = 0;
-  for (final int v in son) {
-    somme += v * v;
-  }
-  return math.sqrt(somme / son.length);
-}
-
-int _pic(Int16List son, double gain) {
-  int pic = 0;
-  for (final int v in son) {
-    final int a = v.abs();
-    if (a > pic) pic = a;
-  }
-  return (pic * gain).ceil();
-}
-
-double _db(double rapport) => 20 * (math.log(rapport) / math.ln10);
-
-double _arrondi(double v) => double.parse(v.toStringAsFixed(1));
-
-/// Le même son, à un autre niveau.
-ArrayInt16 _ajuster(Int16List son, double gain) {
-  final Int16List ajuste = Int16List(son.length);
-  for (int i = 0; i < son.length; i++) {
-    ajuste[i] = (son[i] * gain).round().clamp(-32767, 32767);
-  }
-  return ArrayInt16(bytes: ajuste.buffer.asByteData());
-}
-
-/// Vrai si le banc et le moteur ont rendu le même son. Le tampon du moteur est
-/// plus long d'une seconde de queue, comme celui du banc : on compare ce qu'ils
-/// ont en commun.
-bool _identiques(Int16List banc, ArrayInt16 moteur) {
-  final int commun = math.min(banc.length, moteur.bytes.lengthInBytes ~/ 2);
-  for (int i = 0; i < commun; i++) {
-    if (banc[i] != moteur[i]) return false;
-  }
-  return true;
-}
-
 /// Le `rms` de chaque sonorité, tel que l'appli le connaît. C'est ce chiffre-là
 /// qu'il faut essayer, pas une mesure refaite sur le passage — sans quoi le
 /// banc validerait une égalisation que l'appli ne saurait pas reproduire.
@@ -442,14 +292,6 @@ Map<int, double> _rmsPublies(Directory source) {
       i['programme'] as int:
           ((i['standard'] as Map<String, dynamic>)['rms'] as num).toDouble(),
   };
-}
-
-class _Evenement {
-  final double temps;
-  final bool debut;
-  final int hauteur;
-
-  _Evenement(this.temps, this.debut, this.hauteur);
 }
 
 /// Un extrait à écouter : un fichier, ce qu'il fait entendre, et de quoi le
