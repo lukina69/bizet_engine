@@ -322,7 +322,7 @@ class RenduAudio {
 
         for (final doublage in voix.epaisseur.voix(
           sonnante.hauteur + 12 * jouee.octave,
-          brillance: reglages.brillance - voix.recul,
+          brillance: reglages.brillance,
         )) {
           final int canal = jouee.premierCanal + doublage.canal;
           liste.add(_Evenement(debut, true, doublage.hauteur, canal,

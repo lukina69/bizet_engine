@@ -29,7 +29,6 @@ class Voix {
     this.epaisseur = Epaisseur.simple,
     this.nuances = Nuances.uniformes,
     this.volume = 0,
-    this.recul = 0,
   });
 
   /// Programme General MIDI de la voix.
@@ -65,16 +64,6 @@ class Voix {
   /// Zéro laisse l'équilibre automatique tel quel.
   final int volume;
 
-  /// Recul de vélocité sous la brillance, en crans.
-  ///
-  /// **Transitoire.** Il porte l'ancien modèle, où les voix ajoutées jouaient
-  /// par construction d'une attaque plus molle que la mélodie — 20 et 35 crans
-  /// en dessous. C'était le seul moyen de les mettre en retrait avant que le
-  /// niveau ait son propre chemin. Maintenant que chaque voix a son volume, ce
-  /// retrait-là n'a plus de raison d'être imposé : il disparaîtra, et les trois
-  /// voix partiront de la même attaque.
-  final int recul;
-
   /// Vrai quand la voix fait du son. Le rang zéro sonne toujours ; les autres
   /// ne sonnent que si on leur a donné une sonorité.
   bool sonneAuRang(int rang) => rang == 0 || instrument != null;
@@ -98,8 +87,14 @@ class Voix {
   /// décalage voulu par l'utilisateur.
   ///
   /// Une flûte qui double une ligne de violoncelle monte, un tuba qui double
-  /// une ligne de flûte descend — sans réglage : la tessiture vient du
-  /// catalogue. Le décalage vaut pour le morceau entier, jamais note à note :
+  /// une ligne de flûte descend, sans réglage : la tessiture vient du
+  /// catalogue. C'est ce qui donne son sens au réglage d'octave, dont le zéro
+  /// veut dire « là où cette voix sonne bien » et non « à la hauteur écrite ».
+  ///
+  /// **Le catalogue ne décrit qu'une vingtaine de sonorités sur cent vingt.**
+  /// Les autres restent où elles sont : une tessiture musicale se saisit à la
+  /// main, elle ne se mesure pas comme un poids. Une sonorité inconnue vaut
+  /// donc mieux que devinée. Le décalage vaut pour le morceau entier, jamais note à note :
   /// une voix qui sauterait d'octave en cours de route casserait le dessin de
   /// la mélodie.
   int caleeSur(List<int> hauteurs, Melodie melodie) {
@@ -134,7 +129,6 @@ class Voix {
     Epaisseur? epaisseur,
     Nuances? nuances,
     int? volume,
-    int? recul,
   }) =>
       Voix(
         instrument:
@@ -146,6 +140,5 @@ class Voix {
         epaisseur: epaisseur ?? this.epaisseur,
         nuances: nuances ?? this.nuances,
         volume: volume ?? this.volume,
-        recul: recul ?? this.recul,
       );
 }

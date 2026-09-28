@@ -91,45 +91,75 @@ void main() {
       expect(court.volumeDe(2), 0);
     });
 
-    test('les voix ajoutées se calent, la principale reste où elle est', () {
+    test('toutes les voix se calent, la principale comprise', () {
       // La flûte (tessiture 60-96) est chez elle sur ce morceau ; le
       // violoncelle (36-76) aussi. Aucune n'a besoin de bouger.
       final List<VoixJouee> jouees = riches.voixJouees(_morceau());
       expect(jouees.every((j) => j.octave == 0), isTrue);
 
-      // Sur une ligne deux octaves plus bas, la flûte monte et la voix
-      // principale, elle, ne bouge pas : le calage automatique ne s'applique
-      // qu'aux voix ajoutées — c'est le chantier suivant.
+      // Sur une ligne deux octaves plus bas, la flûte remonte, et la voix
+      // principale aussi quand sa sonorité n'y descend pas. Elle jouait
+      // jusqu'ici à la hauteur écrite, ce qui faisait deux poids deux mesures
+      // pour un défaut qui s'entend.
       final Melodie grave = _morceau().transposee(-24);
-      final List<VoixJouee> basses = riches.voixJouees(grave);
-      expect(basses[0].octave, 0, reason: 'la principale reste écrite');
-      expect(basses[1].octave, greaterThan(0), reason: 'la flûte remonte');
+      expect(riches.voixJouees(grave)[1].octave, greaterThan(0),
+          reason: 'la flûte ajoutée remonte');
+
+      // La flûte (60-96) en voix principale sur une ligne à 36 : elle remonte
+      // de deux octaves pour retrouver son registre.
+      final Reglages seule = Reglages(voix: [const Voix(instrument: 73)]);
+      expect(seule.voixJouees(grave).single.octave, 2,
+          reason: 'la flûte ne descend pas si bas');
     });
 
-    test('la brillance descend sur toutes les voix, chacune à son recul', () {
-      // Les doublages de la principale restent 10 et 25 crans sous elle ; les
-      // voix ajoutées 20 et 35 — l'ancien retrait d'attaque, que le volume par
-      // voix rendra inutile.
-      final List<Voix> rangs = riches.voix;
-      expect(rangs[0].recul, 0);
-      expect(rangs[1].recul, 20);
-      expect(rangs[2].recul, 35);
+    test('le réglage d\'octave s\'ajoute au calage, il ne le remplace pas', () {
+      // C'est ce qui donne son sens au zéro du curseur : « là où cette voix
+      // sonne bien », et non « à la hauteur écrite ».
+      final Melodie grave = _morceau().transposee(-24);
 
-      const int brillance = Epaisseur.velociteBase;
+      final int naturelle =
+          Reglages(voix: [const Voix(instrument: 73)]).voixJouees(grave)
+              .single.octave;
+      final int demandee =
+          Reglages(voix: [const Voix(instrument: 73, octave: -1)])
+              .voixJouees(grave).single.octave;
+
+      expect(demandee, naturelle - 1);
+    });
+
+    test('une sonorité que le catalogue ignore reste où elle est écrite', () {
+      // Une tessiture musicale se saisit à la main, elle ne se mesure pas
+      // comme un poids : mieux vaut ne pas caler que caler au hasard.
+      expect(instrumentParProgramme(99), isNull);
+      final Melodie grave = _morceau().transposee(-24);
       expect(
-        [for (final v in rangs[0].epaisseur.voix(60, brillance: brillance)) v.velocite],
+        Reglages(voix: [const Voix(instrument: 99)]).voixJouees(grave)
+            .single.octave,
+        0,
+      );
+    });
+
+    test('toutes les voix partent de la même attaque', () {
+      // Les voix ajoutées frappaient vingt et trente-cinq crans plus mollement
+      // que la mélodie. C'était le seul moyen de les mettre en retrait avant
+      // que le niveau ait son propre chemin, et ça leur coûtait leur timbre :
+      // une flûte discrète ne sonnait pas comme une flûte en avant. Le volume
+      // par voix fait ce travail sans toucher au son.
+      const int brillance = Epaisseur.velociteBase;
+      for (final Voix v in riches.voix) {
+        expect(v.epaisseur.voix(60, brillance: brillance).first.velocite,
+            brillance);
+      }
+
+      // Les doublages d'une même voix gardent le leur : eux sont là pour
+      // épaissir sans couvrir la ligne qu'ils doublent.
+      expect(
+        [
+          for (final v in Epaisseur.large.voix(60, brillance: brillance))
+            v.velocite,
+        ],
         [brillance, brillance - 10, brillance - 25],
       );
-      for (final int rang in const [1, 2]) {
-        expect(
-          rangs[rang]
-              .epaisseur
-              .voix(60, brillance: brillance - rangs[rang].recul)
-              .single
-              .velocite,
-          brillance - rangs[rang].recul,
-        );
-      }
     });
 
     test('des voix réglées une à une prennent le dessus sur les champs à plat',

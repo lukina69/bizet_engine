@@ -183,7 +183,6 @@ class Reglages {
           balancement: balancement,
           nuances: nuances,
           volume: volumeDe(rang + 1),
-          recul: _reculsAjoutees[rang],
         ),
     ];
   }
@@ -191,10 +190,6 @@ class Reglages {
   /// Le volume du rang demandé, zéro à défaut : un fichier de travail écrit
   /// par une autre version ne peut pas fabriquer un objet bancal.
   int volumeDe(int rang) => rang < volumes.length ? volumes[rang] : 0;
-
-  /// Le retrait d'attaque des voix ajoutées, hérité de l'ancien modèle.
-  /// Voir [Voix.recul] : il est appelé à disparaître.
-  static const List<int> _reculsAjoutees = [20, 35];
 
   /// Les voix qui sonnent sur ce morceau, résolues : leur sonorité, leurs
   /// canaux MIDI, leur niveau et l'octave où elles se posent.
@@ -226,10 +221,12 @@ class Reglages {
           premierCanal: canal,
           programme: v.programmeSur(melodie),
           niveau: v.niveauSur(melodie),
-          // La voix principale reste à la hauteur écrite : le calage
-          // automatique ne s'applique aujourd'hui qu'aux voix ajoutées, et
-          // l'étendre est un chantier à part.
-          octave: rang == 0 ? v.octave : v.caleeSur(hauteurs, melodie),
+          // Toutes les voix se calent, la principale comprise : une boîte à
+          // musique ou un tuba en mélodie jouait jusqu'ici à la hauteur
+          // écrite, souvent hors de sa tessiture, alors que la même sonorité
+          // en voix ajoutée se replaçait toute seule. Deux poids, deux
+          // mesures, pour un défaut qui s'entend.
+          octave: v.caleeSur(hauteurs, melodie),
         ));
       }
       canal += v.canaux;
