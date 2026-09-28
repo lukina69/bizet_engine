@@ -89,7 +89,24 @@ class Reglages {
   /// respirer le morceau à des endroits différents, tous justifiés.
   final int graine;
 
+  /// Les voix réglées une à une, quand l'hôte sait le faire. Nul sinon, et
+  /// [voix] les déduit alors des champs à plat.
+  ///
+  /// **C'est un pont, et il est provisoire.** Le modèle vise trois voix qui
+  /// portent chacune leur jeu, et les champs à plat au-dessus n'ont plus de
+  /// raison d'être une fois que tout le monde les fournit. Mais la scène et le
+  /// tirage règlent encore un morceau d'un bloc, et les vider d'un coup
+  /// reviendrait à retourner une quinzaine de fichiers pour un résultat que
+  /// personne ne verrait. Les deux chemins cohabitent donc le temps que
+  /// l'écran apprenne les voix, et le nettoyage vient après, à froid.
+  final List<Voix>? _voixChoisies;
+
+  /// Nombre de voix qu'un morceau peut porter. Trois : au-delà, l'oreille
+  /// n'entend plus des timbres distincts mais une bouillie.
+  static const int voixMaximum = 3;
+
   const Reglages({
+    List<Voix>? voix,
     this.tempo,
     this.instrument,
     this.octave = 0,
@@ -103,7 +120,7 @@ class Reglages {
     this.rubato = Rubato.mecanique,
     this.nuances = Nuances.uniformes,
     this.graine = 0,
-  });
+  }) : _voixChoisies = voix;
 
   /// Ce que devient le curseur d'articulation une fois passé au moteur : un
   /// multiplicateur de la durée écrite, du plus piqué (0) au lié (100).
@@ -118,36 +135,58 @@ class Reglages {
   static double articulationDepuisCran(int cran) =>
       _gatePique + (_gateLie - _gatePique) * (cran.clamp(0, 100) / 100);
 
+  /// Le chemin inverse : retrouver le cran à partir du multiplicateur.
+  ///
+  /// L'écran range ses curseurs en crans, les voix portent des
+  /// multiplicateurs. Tant que les deux cohabitent, il faut savoir passer de
+  /// l'un à l'autre sans garder deux fois la même valeur, ce qui finirait
+  /// toujours par les faire diverger.
+  static int cranDepuisArticulation(double facteur) =>
+      (((facteur - _gatePique) / (_gateLie - _gatePique)) * 100)
+          .round()
+          .clamp(0, 100);
+
   static const double _gatePique = 0.25;
   static const double _gateLie = 1.05;
 
   /// Les voix telles qu'elles se jouent, dans l'ordre de leurs canaux.
   ///
-  /// **Étape de transition.** Le modèle vise trois voix qui portent chacune
-  /// leur jeu ; pour l'instant elles se déduisent des réglages à plat, et
-  /// reproduisent donc exactement ce que l'appli fait aujourd'hui — même
-  /// articulation, même balancement, mêmes nuances partout, l'épaisseur sur la
-  /// seule voix principale, et le retrait d'attaque imposé aux voix ajoutées.
-  /// La propriété passera aux voix quand l'écran saura les régler.
-  List<Voix> get voix => [
+  /// Celles que l'hôte a réglées une à une, quand il en a fourni. Sinon elles
+  /// se déduisent des champs à plat et reproduisent alors exactement ce que
+  /// l'appli faisait avant les voix : même articulation, même balancement,
+  /// mêmes nuances partout, l'épaisseur sur la seule voix principale, et le
+  /// retrait d'attaque imposé aux voix ajoutées.
+  List<Voix> get voix {
+    final List<Voix>? choisies = _voixChoisies;
+    if (choisies != null) {
+      // Complétée ou tronquée : un fichier de travail écrit par une autre
+      // version ne peut pas fabriquer un objet bancal.
+      return [
+        for (int rang = 0; rang < voixMaximum; rang++)
+          rang < choisies.length ? choisies[rang] : const Voix(),
+      ];
+    }
+
+    return [
+      Voix(
+        instrument: instrument,
+        volume: volumeDe(0),
+        articulation: articulation,
+        balancement: balancement,
+        epaisseur: epaisseur,
+        nuances: nuances,
+      ),
+      for (int rang = 0; rang < Compagnons.maximum; rang++)
         Voix(
-          instrument: instrument,
-          volume: volumeDe(0),
+          instrument: compagnons.rangs[rang],
           articulation: articulation,
           balancement: balancement,
-          epaisseur: epaisseur,
           nuances: nuances,
+          volume: volumeDe(rang + 1),
+          recul: _reculsAjoutees[rang],
         ),
-        for (int rang = 0; rang < Compagnons.maximum; rang++)
-          Voix(
-            instrument: compagnons.rangs[rang],
-            articulation: articulation,
-            balancement: balancement,
-            nuances: nuances,
-            volume: volumeDe(rang + 1),
-            recul: _reculsAjoutees[rang],
-          ),
-      ];
+    ];
+  }
 
   /// Le volume du rang demandé, zéro à défaut : un fichier de travail écrit
   /// par une autre version ne peut pas fabriquer un objet bancal.

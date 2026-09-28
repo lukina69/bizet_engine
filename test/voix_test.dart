@@ -132,6 +132,43 @@ void main() {
       }
     });
 
+    test('des voix réglées une à une prennent le dessus sur les champs à plat',
+        () {
+      // C'est le pont : tant que la scène règle un morceau d'un bloc, les deux
+      // chemins cohabitent. Ce qui compte est que l'hôte qui fournit ses voix
+      // ne se fasse pas écraser par les anciens champs.
+      final Reglages regle = Reglages(
+        articulation: 1.0,
+        epaisseur: Epaisseur.large,
+        voix: [
+          const Voix(instrument: 0, articulation: 0.4),
+          const Voix(instrument: 73, articulation: 1.0),
+        ],
+      );
+
+      expect(regle.voix.map((v) => v.articulation), [0.4, 1.0, 1.0],
+          reason: 'chaque voix garde la sienne, la troisième prend le défaut');
+      expect(regle.voix.first.epaisseur, Epaisseur.simple,
+          reason: 'le champ à plat ne déborde plus sur la voix');
+      expect(regle.voix.length, Reglages.voixMaximum,
+          reason: 'la liste est complétée, jamais bancale');
+    });
+
+    test('sans voix fournies, rien ne change pour la scène', () {
+      final Reglages ancien = Reglages(
+        instrument: 0,
+        articulation: 0.4,
+        epaisseur: Epaisseur.large,
+        compagnons: Compagnons([73, null]),
+      );
+
+      expect(ancien.voix[0].instrument, 0);
+      expect(ancien.voix[0].epaisseur, Epaisseur.large);
+      expect(ancien.voix[1].instrument, 73);
+      expect(ancien.voix.map((v) => v.articulation), [0.4, 0.4, 0.4],
+          reason: 'l\'ancien modèle imposait la même à toutes');
+    });
+
     test('le rubato appartient au chef, pas aux voix', () {
       // Deux voix qui respireraient chacune de leur côté se
       // désynchroniseraient. Les écarts se calculent une fois et se
