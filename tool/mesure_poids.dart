@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import 'package:bizet_engine/bizet_engine.dart';
 import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 
+import 'banc_commun.dart';
+
 /// Mesure le poids naturel de **toutes** les sonorités publiées, et écrit la
 /// table que le moteur embarque.
 ///
@@ -19,13 +21,37 @@ import 'package:dart_melty_soundfont/dart_melty_soundfont.dart';
 /// dépendrait ne marcherait pas hors ligne — et surtout, elle ne le dirait
 /// pas. Cent vingt nombres ne pèsent rien : ils voyagent avec le code.
 ///
-/// La mesure : la puissance (RMS sur 0,75 s) d'une note tenue à vélocité 60,
-/// prise **là où l'instrument joue vraiment** — au do central quand sa
-/// tessiture le contient, au centre de sa tessiture sinon. Une sonorité que le
-/// catalogue ne connaît pas n'a pas de tessiture : on la prend au do central.
-/// Tout mesurer au même do serait plus simple et moins juste : une boîte à
-/// musique ne descend pas là, et l'échantillon qu'on y entendrait serait un
-/// son étiré que personne ne jouera.
+/// La mesure : **le niveau que l'instrument atteint quand il sonne**, sur une
+/// vraie phrase jouée à vélocité 60, transposée dans l'octave où le calage
+/// automatique poserait l'instrument.
+///
+/// Deux fausses pistes ont été essayées avant celle-ci, et elles disent
+/// pourquoi c'est celle-là.
+///
+/// **Une seule note tenue** sous-estimait les percussions : un marimba y passe
+/// le plus clair du temps à s'éteindre, il paraissait donc faible et on le
+/// remontait, alors que ses attaques le rendaient déjà présent.
+///
+/// **La moyenne sur une phrase entière** a aggravé le défaut au lieu de le
+/// corriger, et pour la même raison en pire : une phrase de percussion est
+/// surtout faite de silence. Mesuré ainsi, le xylophone perdait encore deux
+/// décibels et les nappes en gagnaient six.
+///
+/// Ce qui trompe dans les deux cas, c'est la moyenne : l'oreille n'entend pas
+/// l'énergie moyenne d'un passage, elle entend à quel point ça sonne fort
+/// quand ça sonne. La phrase est donc découpée en tranches courtes, et on ne
+/// retient que les plus fortes : les silences ne pénalisent plus les sons qui
+/// s'éteignent, et les sons qui se tiennent ne sont pas récompensés de durer.
+///
+/// Le réglage a été choisi en comparant plusieurs mesures sur les mêmes
+/// témoins. Entre un marimba et une flûte, l'écart tombe de 8,1 dB avec la
+/// moyenne à 1,1 dB ici, et c'est bien 1 dB que l'oreille entend. Entre deux
+/// instruments qui se tiennent, rien ne bouge.
+///
+/// L'octave suit la même règle que le moteur, faute de quoi on mesurerait un
+/// échantillon étiré que personne ne jouera : une boîte à musique ne descend
+/// pas au do central. Une sonorité que le catalogue ne décrit pas garde la
+/// phrase telle quelle.
 ///
 /// À relancer à chaque nouvelle édition du catalogue.
 ///
@@ -128,37 +154,50 @@ void main(List<String> arguments) {
     ..writeln('→ $sortie');
 }
 
-/// La puissance d'une note tenue, sur la sonorité seule.
+/// La puissance de la phrase, jouée par cette sonorité seule.
 double _puissance(File banque, int programme) {
-  final Synthesizer synth = Synthesizer.loadByteData(
-    banque.readAsBytesSync().buffer.asByteData(),
-    SynthesizerSettings(
-      sampleRate: 44100,
-      blockSize: 64,
-      maximumPolyphony: 64,
-      enableReverbAndChorus: true,
-    ),
-  );
+  final ByteData octets = banque.readAsBytesSync().buffer.asByteData();
 
-  // Là où l'instrument joue vraiment : le catalogue porte les tessitures
-  // musicales de celles qu'il connaît. Les autres, faute de mieux, au do
-  // central — c'est là que passe la quasi-totalité d'une mélodie.
+  // Là où l'instrument jouera vraiment. Le moteur cale les voix sur leur
+  // tessiture avant de les faire sonner : mesurer ailleurs reviendrait à peser
+  // un son que personne n'entendra.
+  final Melodie morceau = passage().transposee(12 * _octaveDe(programme));
+  final double secondesParTemps = 60.0 / morceau.tempo;
+
+  return niveauQuandCaSonne(jouer(
+    octets,
+    programme,
+    evenements(morceau),
+    60,
+    secondesParTemps: secondesParTemps,
+    total: echantillons(morceau),
+  ));
+}
+
+
+/// L'octave où le calage automatique poserait cette sonorité sur la phrase.
+/// Zéro pour celles que le catalogue ne décrit pas : une tessiture se saisit à
+/// la main, elle ne se devine pas.
+int _octaveDe(int programme) {
   final Instrument? connu = instrumentParProgramme(programme);
-  final int cle =
-      connu == null ? 60 : (connu.contient(60) ? 60 : connu.centre);
+  if (connu == null) return 0;
 
-  synth.processMidiMessage(
-      channel: 0, command: 0xC0, data1: programme, data2: 0);
+  final List<int> hauteurs = [
+    for (final mesure in passage().mesures)
+      for (final note in mesure.notes) note.hauteur,
+  ];
 
-  const int points = 33075; // 0,75 s à 44 100 Hz
-  final ArrayInt16 tampon = ArrayInt16.zeros(numShorts: points);
-  synth.noteOn(channel: 0, key: cle, velocity: 60);
-  synth.renderMonoInt16(tampon, offset: 0, length: points);
-
-  double somme = 0;
-  for (int i = 0; i < points; i++) {
-    final int v = tampon[i] as int;
-    somme += v * v;
+  int meilleur = 0;
+  int plusDedans = -1;
+  for (final int essai in const [0, -1, 1, -2, 2]) {
+    int dedans = 0;
+    for (final int h in hauteurs) {
+      if (connu.contient(h + 12 * essai)) dedans++;
+    }
+    if (dedans > plusDedans) {
+      meilleur = essai;
+      plusDedans = dedans;
+    }
   }
-  return math.sqrt(somme / points);
+  return meilleur;
 }

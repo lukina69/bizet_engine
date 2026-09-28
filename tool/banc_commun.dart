@@ -163,6 +163,33 @@ double puissance(Int16List son) {
   return math.sqrt(somme / son.length);
 }
 
+/// Le niveau atteint par les tranches les plus fortes d'un rendu.
+///
+/// Tranches de 50 ms, centile 99, soit les trois plus fortes d'une phrase de
+/// quatorze secondes. C'est presque le pic, mais moyenné sur une tranche
+/// plutôt que pris sur un échantillon isolé.
+///
+/// **C'est elle qui pèse les sonorités**, et pas la valeur efficace : une
+/// percussion passe le plus clair d'une phrase à s'éteindre, la moyenne la
+/// dit faible alors que ses attaques la rendent présente. Voir
+/// `mesure_poids.dart`.
+double niveauQuandCaSonne(Int16List son) {
+  const int tranche = 2205; // 50 ms à 44 100 Hz
+  final List<double> niveaux = [];
+
+  for (int debut = 0; debut + tranche <= son.length; debut += tranche) {
+    double somme = 0;
+    for (int i = debut; i < debut + tranche; i++) {
+      somme += son[i] * son[i];
+    }
+    niveaux.add(math.sqrt(somme / tranche));
+  }
+  if (niveaux.isEmpty) return 0;
+
+  niveaux.sort();
+  return niveaux[(niveaux.length * 0.99).floor().clamp(0, niveaux.length - 1)];
+}
+
 int pic(Int16List son, [double gain = 1.0]) {
   int haut = 0;
   for (final int v in son) {

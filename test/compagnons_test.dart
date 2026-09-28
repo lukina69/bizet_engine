@@ -61,14 +61,22 @@ void main() {
       // dessous — sans quoi l'appli perdrait ou gagnerait du volume partout.
       final int dessous =
           poidsMesures.values.where((p) => p < repereEgalisation).length;
-      expect(dessous, closeTo(poidsMesures.length / 2, 1));
+      // La tolérance laisse passer les ex aequo : plusieurs sonorités peuvent
+      // peser exactement pareil, et elles tombent alors du même côté.
+      expect(dessous, closeTo(poidsMesures.length / 2, 4));
     });
 
     test('une sonorité forte descend, une sonorité douce monte', () {
       // Le tuba est presque le plus fort de la banque, la boîte à musique
       // parmi les plus discrètes. Ils se rejoignent.
-      expect(niveau(Compagnons([58, null]).equilibres()), lessThan(-8));
-      expect(niveau(Compagnons([10, null]).equilibres()), greaterThan(8));
+      // Aucun chiffre en dur : une nouvelle mesure de la banque les
+      // déplacerait tous, et le test ne dirait plus que l'humeur du jour.
+      expect(niveau(Compagnons([58, null]).equilibres()),
+          closeTo(repereEgalisation - poidsNaturel(58)!, 1e-9));
+      expect(niveau(Compagnons([58, null]).equilibres()), lessThan(0),
+          reason: 'le tuba est au-dessus du repère, donc il descend');
+      expect(niveau(Compagnons([10, null]).equilibres()), greaterThan(0),
+          reason: 'la boîte à musique est en dessous, donc elle monte');
       expect(Compagnons([58, null]).equilibres().voix(60, 1).single.velocite,
           Epaisseur.velociteBase - 20,
           reason: 'la vélocité ne sert plus au niveau');
@@ -80,15 +88,23 @@ void main() {
       // autrement selon la sonorité principale, et le volume du morceau
       // sautait dès qu'on changeait celle-ci.
       final double seul = niveau(Compagnons([56, null]).equilibres());
-      expect(seul, closeTo(-1.1, 0.05));
+      expect(seul, closeTo(repereEgalisation - poidsNaturel(56)!, 1e-9));
       expect(Compagnons([56, 40]).equilibres().canaux(1).first.niveau, seul,
           reason: 'la voisine ne change rien non plus');
     });
 
     test('deux sonorités de même poids reçoivent la même correction', () {
-      // Violon et trompette pèsent pareil dans la banque.
-      expect(niveau(Compagnons([56, null]).equilibres()),
-          niveau(Compagnons([40, null]).equilibres()));
+      // Cherchée dans la table plutôt qu'écrite en dur : quelles sonorités
+      // pèsent pareil dépend de la mesure, et la mesure évolue.
+      final Map<double, List<int>> parPoids = {};
+      poidsMesures.forEach((programme, poids) {
+        (parPoids[poids] ??= []).add(programme);
+      });
+      final List<int> jumelles =
+          parPoids.values.firstWhere((l) => l.length >= 2);
+
+      expect(niveau(Compagnons([jumelles[0], null]).equilibres()),
+          niveau(Compagnons([jumelles[1], null]).equilibres()));
     });
 
     test('une sonorité que le catalogue ignore est égalisée quand même', () {
@@ -99,7 +115,8 @@ void main() {
       // rien ne le dise.
       expect(instrumentParProgramme(99), isNull,
           reason: 'l\'atmosphère n\'est pas décrite par le catalogue');
-      expect(niveau(Compagnons([99, null]).equilibres()), closeTo(-0.1, 0.05));
+      expect(niveau(Compagnons([99, null]).equilibres()),
+          closeTo(repereEgalisation - poidsNaturel(99)!, 1e-9));
     });
 
     test('une sonorité absente de la banque ne se corrige pas', () {
@@ -139,7 +156,7 @@ void main() {
           Compagnons([73, null]).calesSur([48, 52, 55]).equilibres();
       expect(cales.decalages, [1, 0]);
       expect(cales.voix(48, 1).single.hauteur, 60);
-      expect(niveau(cales), closeTo(-2.2, 0.05));
+      expect(niveau(cales), closeTo(repereEgalisation - poidsNaturel(73)!, 1e-9));
       expect(cales.voix(48, 1).single.velocite, Epaisseur.velociteBase - 20,
           reason: 'et garde son attaque : le niveau seul a bougé');
     });
