@@ -127,7 +127,26 @@ class Voix {
         plusDedans = dedans;
       }
     }
-    return meilleur + octave;
+    return _dansLeClavier(meilleur + octave, hauteurs);
+  }
+
+  /// Ramène le décalage à ce que le clavier MIDI peut porter.
+  ///
+  /// Le calage et le réglage de l'utilisateur s'ajoutent, et deux octaves plus
+  /// deux peuvent pousser une mélodie aiguë au-delà de la note 127. Une note
+  /// qui sort du clavier ne sonne pas : elle disparaît sans un mot, et le
+  /// morceau se troue. On rend donc une octave plutôt que de perdre des notes.
+  static int _dansLeClavier(int octave, List<int> hauteurs) {
+    if (hauteurs.isEmpty) return octave;
+
+    int vise = octave;
+    while (vise > 0 && hauteurs.any((h) => h + 12 * vise > 127)) {
+      vise--;
+    }
+    while (vise < 0 && hauteurs.any((h) => h + 12 * vise < 0)) {
+      vise++;
+    }
+    return vise;
   }
 
   Voix avec({

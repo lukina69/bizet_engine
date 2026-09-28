@@ -127,6 +127,37 @@ void main() {
       expect(demandee, naturelle - 1);
     });
 
+    test('le calage ne pousse jamais une note hors du clavier', () {
+      // Le calage et le réglage de l'utilisateur s'ajoutent : sur une mélodie
+      // aiguë, deux octaves plus deux passaient au-delà de la note 127. Ces
+      // notes-là ne sonnent pas, elles disparaissent sans un mot.
+      final Melodie haute = Melodie(
+        titre: '',
+        source: '',
+        tempo: 120,
+        instrumentMidi: 0,
+        mesures: [
+          Mesure(notes: [
+            Note(hauteur: 100, duree: 1.0, position: 0.0),
+            Note(hauteur: 107, duree: 1.0, position: 1.0),
+          ], duree: 4.0),
+        ],
+      );
+
+      for (final int demande in const [-2, 0, 2]) {
+        final VoixJouee jouee =
+            Reglages(voix: [Voix(instrument: 58, octave: demande)])
+                .voixJouees(haute)
+                .single;
+        for (final mesure in haute.mesures) {
+          for (final note in mesure.notes) {
+            expect(note.hauteur + 12 * jouee.octave, inInclusiveRange(0, 127),
+                reason: 'octave demandée $demande');
+          }
+        }
+      }
+    });
+
     test('une sonorité que le catalogue ignore reste où elle est écrite', () {
       // Une tessiture musicale se saisit à la main, elle ne se mesure pas
       // comme un poids : mieux vaut ne pas caler que caler au hasard.

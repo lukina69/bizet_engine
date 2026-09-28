@@ -5,49 +5,25 @@ que l'opération reste un déplacement et non une réécriture.
 
 ---
 
-## 1. Faire migrer le pipeline de jeu — premier chantier de la session suivante
+## 1. Faire migrer le pipeline de jeu — FAIT (28 septembre 2026)
 
-**Ce n'est pas un nettoyage optionnel : c'est le point de départ de la couche
-générative.**
-
-`Atelier._melodieJouee()` (dans Bizet) contient la logique qui transforme la
-partition écrite en partition jouée :
-
-```dart
-_melodie!.decoupee().enMode(majeur).transposee(octave * 12)
-// puis tempo et instrument
-```
-
-L'ordre compte : le mode se change **avant** la transposition, pour que les
-degrés se comptent depuis la tonique écrite et non depuis celle où
-l'utilisateur a déplacé le morceau. Trois autres méthodes de `Atelier` sont du
-même ressort :
-
-- `_fenetreBalancement()` — la paire de notes que le balancement décale,
-  déduite de la pulsation du morceau ;
-- `instrumentDisponible()` — la sonorité la plus proche parmi celles que le
-  SoundFont possède réellement ;
-- l'ordre d'application des réglages au moment de rendre.
-
-La couche générative se résume à : tirer des paramètres, appliquer ce pipeline,
-rendre. C'est donc exactement ce que `Capture` appellera. Il faut le faire
-descendre dans le moteur, débarrassé du `ChangeNotifier` — probablement sous
-forme d'un objet de réglages sans état, que `Atelier` détiendra et que
-`GenerativePlayer` fabriquera.
+La transformation de la partition écrite en partition jouée vit dans le moteur,
+et `Atelier` n'en garde plus rien. Elle se lit dans `Reglages.applique`, qui
+pose le tempo, le mode et la sonorité, puis dans `Reglages.voixJouees`, qui
+résout chaque voix : sa sonorité, ses canaux MIDI, son niveau et l'octave où le
+calage la pose. L'ordre est tenu là, une fois pour toutes.
 
 ---
 
-## 2. Deux copies de `_evenements()` — risque de divergence
+## 2. Deux copies de `_evenements()` — FAIT (31 août 2026)
 
-`RenduAudio._evenements()` (en secondes) et `ExportMusical._evenements()` (en
-tics MIDI) font le même travail avec les mêmes règles de tri : à instant égal,
-on éteint avant d'allumer. Elles diffèrent par l'unité de temps et par le
-moment où le balancement s'applique.
+`RenduAudio` et `ExportMusical` lisent maintenant tous deux `voixJouees` :
+mêmes canaux, mêmes niveaux, même octave, même rubato pris au chef. Ils ne
+diffèrent plus que par l'unité de temps, secondes d'un côté, tics MIDI de
+l'autre.
 
-Elles sont maintenant voisines dans le même paquet, ce qui rend la fusion
-facile. À faire, parce que **deux jeux de règles qui doivent rester synchronisés
-finissent toujours par se désynchroniser** : une correction apportée à l'une
-sans l'autre donnerait un fichier MIDI qui ne sonne pas comme la lecture.
+Ils s'accordaient auparavant par coïncidence plutôt que par construction, et
+deux chemins qui doivent produire le même son finissent toujours par diverger.
 
 ---
 

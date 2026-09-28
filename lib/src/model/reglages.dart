@@ -72,9 +72,9 @@ class Reglages {
   /// l'hôte porte — le moteur, lui, s'en tient à [Epaisseur.velociteBase],
   /// ce qu'il a toujours joué.
   ///
-  /// Les voix d'accompagnement suivent, en gardant leur recul : l'équilibre
-  /// entre les voix ne dépend jamais de ce réglage, seul le grain d'ensemble
-  /// change.
+  /// Les trois voix partent de la même attaque : l'équilibre entre elles ne
+  /// dépend jamais de ce réglage, seul le grain d'ensemble change. Ce sont
+  /// leurs volumes qui les placent l'une derrière l'autre.
   final int brillance;
 
   /// La liberté de placement dans le temps : ce qui fait qu'on entend
