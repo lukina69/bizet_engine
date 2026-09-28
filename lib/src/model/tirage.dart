@@ -121,7 +121,14 @@ class Tirage {
       // le dit : le même cran va aux deux voix ajoutées, la principale reste
       // au repère. Elle ne tire pas encore voix par voix, et c'est délibéré —
       // ce serait doubler le chantier.
-      volumes: [0, ...List<int>.filled(2, _entre(b.accompagnement))],
+      //
+      // Sa recette compte en crans de quatre décibels, le moteur en crans de
+      // trois depuis que l'écran en offre dix. On convertit plutôt que de
+      // laisser une recette déjà écrite sonner autrement qu'avant.
+      volumes: [
+        0,
+        ...List<int>.filled(2, (_entre(b.accompagnement) * 4 / 3).round()),
+      ],
       rubato: respire
           ? Rubato.values[_cran(b.rubato, Rubato.values.length)]
           : Rubato.mecanique,

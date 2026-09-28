@@ -93,7 +93,9 @@ void main() {
         final Reglages r = tirage.prochain().reglages;
         expect(r.tempo, inInclusiveRange(90, 180));
         expect(r.octave, inInclusiveRange(-1, 1));
-        expect(r.volumeDe(1), inInclusiveRange(-3, 0));
+        // La recette compte en crans de quatre décibels, le moteur en crans de
+        // trois : quatre crans de recette en font au plus cinq ici.
+        expect(r.volumeDe(1), inInclusiveRange(-4, 0));
         expect(r.volumeDe(2), r.volumeDe(1));
         // L'articulation part en multiplicateur de durée, pas en pourcentage.
         expect(r.articulation, inInclusiveRange(0.57, 1.05));

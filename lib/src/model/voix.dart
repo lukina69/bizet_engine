@@ -60,8 +60,16 @@ class Voix {
   /// Le poids de chaque note.
   final Nuances nuances;
 
-  /// Le volume de la voix, en crans de 4 dB autour du repère d'égalisation.
-  /// Zéro laisse l'équilibre automatique tel quel.
+  /// Le volume de la voix, en crans sous le repère d'égalisation. Zéro laisse
+  /// l'équilibre automatique tel quel, négatif met la voix en retrait.
+  ///
+  /// **Le repère est le haut de la course, et c'est un choix.** On pourrait
+  /// monter une voix au-dessus, mais pas également : le contrôleur MIDI ne
+  /// dépasse son repos que de quatre décibels, et l'égalisation en a déjà
+  /// dépensé une part variable selon la sonorité. Le même geste ne donnerait
+  /// donc pas le même résultat d'un instrument à l'autre, ce qui est
+  /// exactement la surprise que l'égalisation existe pour supprimer. Pour
+  /// mettre une voix en avant, on baisse les autres.
   final int volume;
 
   /// Vrai quand la voix fait du son. Le rang zéro sonne toujours ; les autres
@@ -76,9 +84,12 @@ class Voix {
   double niveauSur(Melodie melodie) =>
       correctionEgalisation(programmeSur(melodie)) + volume * dbParCran;
 
-  /// dB par cran de volume : deux crans font 8 dB, un vrai geste sans jamais
-  /// devenir brutal.
-  static const double dbParCran = 4.0;
+  /// dB par cran de volume. Trois : un cran s'entend sans être brutal, et dix
+  /// crans mènent à trente décibels sous le reste, c'est-à-dire à un souffle.
+  static const double dbParCran = 3.0;
+
+  /// Combien de crans séparent le silence utile du repère.
+  static const int cransDeVolume = 10;
 
   /// Nombre de canaux MIDI qu'occupe la voix : un par doublage d'épaisseur.
   int get canaux => epaisseur.canaux;
