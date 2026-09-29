@@ -2,8 +2,9 @@
 ///
 /// Ce que le moteur sait faire :
 ///
-/// * lire une partition LilyPond ([LilypondParser]) ou un fichier MIDI
-///   apporté par l'utilisateur ([MidiParser]) ;
+/// * lire une partition LilyPond ([LilypondParser]), un fichier MIDI
+///   ([MidiParser]) ou une partition MusicXML ([MusicXmlParser]) apportés
+///   par l'utilisateur ;
 /// * la représenter ([Melodie], [Mesure], [Note], [Armure]) ;
 /// * la transformer — transposition, mode majeur/mineur, découpe ;
 /// * dire comment la jouer ([Reglages]) ;
@@ -41,5 +42,6 @@ export 'src/services/banque_reduite.dart';
 export 'src/services/export_musical.dart';
 export 'src/services/lilypond_parser.dart';
 export 'src/services/midi_parser.dart';
+export 'src/services/music_xml_parser.dart';
 export 'src/services/rendu_audio.dart';
 export 'src/services/scene.dart';

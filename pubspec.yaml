@@ -12,7 +12,9 @@ environment:
 dependencies:
   # Synthèse SoundFont. Dart pur, sans dépendance Flutter — c'est ce qui permet
   # au moteur de fabriquer du son hors de toute application.
+  archive: ^4.3.0
   dart_melty_soundfont: ^2.0.0
+  xml: ^7.1.0
 
 dev_dependencies:
   lints: ^6.0.0
