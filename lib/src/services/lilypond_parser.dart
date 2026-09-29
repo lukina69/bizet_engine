@@ -104,6 +104,7 @@ class LilypondParser {
   Melodie parse(String contenu, {String? Function(String nom)? inclure}) {
     String texte = _sansCommentaires(contenu);
     texte = _inclureFichiers(texte, inclure);
+    texte = _demelerParallelMusic(texte);
     final _Langue langue =
         _Langue.pour(_regexLangue.firstMatch(texte)?.group(1) ?? 'nederlands');
     texte = _deroulerRepetitions(texte);
@@ -515,6 +516,81 @@ class LilypondParser {
   // --------------------------------------------------------------- blocs
 
   /// Contenu d'un bloc {...}, accolades imbriquées et chaînes respectées.
+  /// Démêle les blocs `\parallelMusic #'(voix…) { … }` : LilyPond y écrit
+  /// plusieurs voix entrelacées barre par barre (la première barre à la
+  /// première voix, la deuxième à la deuxième, et ainsi de suite), puis
+  /// fabrique une variable par voix. On fait pareil, en texte : le bloc
+  /// devient des définitions de variables ordinaires, que le reste du fichier
+  /// utilise déjà. Sans cela, ces fichiers se lisaient de travers sans rien
+  /// dire — la Bourrée en mi mineur de Bach se réduisait à quelques notes.
+  String _demelerParallelMusic(String texte) {
+    final RegExp debut = RegExp(r"\\parallelMusic\s*#'\(([^)]*)\)\s*\{");
+    Match? m;
+    while ((m = debut.firstMatch(texte)) != null) {
+      final List<String> noms = m!
+          .group(1)!
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((n) => n.isNotEmpty)
+          .toList();
+      final int ouverture = m.end - 1;
+      final int fin = _finBloc(texte, ouverture);
+      final String corps = texte.substring(ouverture + 1, fin - 1);
+
+      final List<StringBuffer> voix = [for (final _ in noms) StringBuffer()];
+      if (noms.isNotEmpty) {
+        int rang = 0;
+        for (final String barre in _decouperParBarres(corps)) {
+          voix[rang % noms.length].write('$barre | ');
+          rang++;
+        }
+      }
+      final String definitions = [
+        for (int i = 0; i < noms.length; i++)
+          '${noms[i]} = { ${voix[i]} }',
+      ].join('\n');
+      texte = texte.replaceRange(m.start, fin, definitions);
+    }
+    return texte;
+  }
+
+  /// Coupe un bloc \parallelMusic sur ses barres de mesure `|`, sans se
+  /// laisser prendre par celles qui vivent dans une chaîne (`\bar "|."`) ou
+  /// dans un bloc imbriqué. La fin du bloc compte comme une dernière barre.
+  List<String> _decouperParBarres(String corps) {
+    final List<String> barres = [];
+    int depuis = 0;
+    int profondeur = 0;
+    for (int i = 0; i < corps.length; i++) {
+      final String c = corps[i];
+      if (c == '"') {
+        i++;
+        while (i < corps.length && corps[i] != '"') {
+          if (corps[i] == '\\') i++;
+          i++;
+        }
+      } else if (c == '<' || c == '>') {
+        // Un chevron précédé d'un tiret, d'un chapeau, d'un souligné ou d'une
+        // oblique n'ouvre rien : c'est un accent (->), un soufflet (\<) ou
+        // une position (^, _), pas un accord.
+        if (i == 0 || !'-^_\\'.contains(corps[i - 1])) {
+          profondeur += c == '<' ? 1 : -1;
+        }
+      } else if (c == '{') {
+        profondeur++;
+      } else if (c == '}') {
+        profondeur--;
+      } else if (c == '|' && profondeur == 0) {
+        barres.add(corps.substring(depuis, i));
+        depuis = i + 1;
+      }
+    }
+    if (corps.substring(depuis).trim().isNotEmpty) {
+      barres.add(corps.substring(depuis));
+    }
+    return barres;
+  }
+
   String _blocAccolades(String texte, int ouverture) =>
       texte.substring(ouverture + 1, _finBloc(texte, ouverture) - 1);
 

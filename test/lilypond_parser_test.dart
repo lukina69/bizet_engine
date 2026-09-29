@@ -223,6 +223,51 @@ melodie = \relative c' { c4 d e f }
     });
   });
 
+  group('LilypondParser — blocs \\parallelMusic', () {
+    // L'écriture entrelacée de LilyPond : les barres se distribuent une à
+    // une entre les voix listées, puis chaque voix devient une variable.
+    // La Bourrée en mi mineur de Bach (BWV 996) est écrite ainsi, et se
+    // lisait de travers sans rien dire : quelques notes fantaisistes.
+    test('les barres se distribuent une à une entre les voix', () {
+      final Melodie m = LilypondParser().parse(r"""
+        \parallelMusic #'(haut bas) {
+          c'4 d' e' f' |
+          c2 g |
+          g'4 f' e' d' |
+          e2 c |
+        }
+        \score { << \new Staff { \haut } \new Staff { \bas } >> }
+      """);
+      expect(m.mesures.length, 2);
+      // Première mesure : la première barre au chant, la deuxième à la basse.
+      final List<int> hauteurs =
+          m.mesures.first.notes.map((n) => n.hauteur).toList()..sort();
+      expect(hauteurs, [48, 55, 60, 62, 64, 65]);
+    });
+
+    test('une barre de fin dans une chaîne ne coupe pas la distribution', () {
+      final Melodie m = LilypondParser().parse(r"""
+        \parallelMusic #'(haut bas) {
+          c'4 d' e' f' \bar "|." |
+          c1 |
+        }
+        \score { << \new Staff { \haut } \new Staff { \bas } >> }
+      """);
+      expect(m.mesures.single.notes.length, 5);
+    });
+
+    test('un accent -> ou un soufflet ne comptent pas comme un accord', () {
+      final Melodie m = LilypondParser().parse(r"""
+        \parallelMusic #'(haut bas) {
+          c'4-> d'\< e' f'\! |
+          <c e>2 g |
+        }
+        \score { << \new Staff { \haut } \new Staff { \bas } >> }
+      """);
+      expect(m.mesures.single.notes.length, 7);
+    });
+  });
+
   group('LilypondParser — langues de notes', () {
     test(r'\language "deutsch" : h = si bécarre, b = si bémol', () {
       final m = p(r'''
