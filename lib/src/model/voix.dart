@@ -29,6 +29,7 @@ class Voix {
     this.epaisseur = Epaisseur.simple,
     this.nuances = Nuances.uniformes,
     this.volume = 0,
+    this.muette = false,
   });
 
   /// Programme General MIDI de la voix.
@@ -72,9 +73,22 @@ class Voix {
   /// mettre une voix en avant, on baisse les autres.
   final int volume;
 
+  /// Vrai quand la voix se tait le temps d'écouter les autres (demande de
+  /// Ludo, 02/10/2026).
+  ///
+  /// Ce n'est ni éteindre ni baisser : la voix garde sa sonorité, son volume
+  /// et ses canaux, elle ne joue simplement aucune note. C'est aussi la seule
+  /// façon de faire taire la voix principale, qui ne s'éteint pas. Le volume
+  /// au plus bas, lui, laisse encore un souffle.
+  ///
+  /// **Une aide à l'écoute, pas un réglage du morceau** : c'est à l'appelant
+  /// de ne pas la laisser passer dans un export ou un fichier de travail.
+  final bool muette;
+
   /// Vrai quand la voix fait du son. Le rang zéro sonne toujours ; les autres
-  /// ne sonnent que si on leur a donné une sonorité.
-  bool sonneAuRang(int rang) => rang == 0 || instrument != null;
+  /// ne sonnent que si on leur a donné une sonorité. Une voix muette ne sonne
+  /// à aucun rang.
+  bool sonneAuRang(int rang) => !muette && (rang == 0 || instrument != null);
 
   /// Le programme réellement joué, la partition servant de recours.
   int programmeSur(Melodie melodie) => instrument ?? melodie.instrumentMidi;
@@ -159,6 +173,7 @@ class Voix {
     Epaisseur? epaisseur,
     Nuances? nuances,
     int? volume,
+    bool? muette,
   }) =>
       Voix(
         instrument:
@@ -170,5 +185,6 @@ class Voix {
         epaisseur: epaisseur ?? this.epaisseur,
         nuances: nuances ?? this.nuances,
         volume: volume ?? this.volume,
+        muette: muette ?? this.muette,
       );
 }

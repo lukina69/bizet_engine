@@ -230,6 +230,40 @@ void main() {
           reason: 'l\'ancien modèle imposait la même à toutes');
     });
 
+    test('une voix muette se tait sans déplacer les autres', () {
+      final Melodie morceau = _morceau();
+      const List<Voix> trois = [
+        Voix(instrument: 0),
+        Voix(instrument: 73),
+        Voix(instrument: 42),
+      ];
+      final List<VoixJouee> toutes = Reglages(voix: trois).voixJouees(morceau);
+
+      // La principale se tait elle aussi, alors qu'elle ne s'éteint pas.
+      final List<VoixJouee> sansLaPrincipale = Reglages(voix: [
+        trois[0].avec(muette: true),
+        trois[1],
+        trois[2],
+      ]).voixJouees(morceau);
+
+      expect(sansLaPrincipale.map((j) => j.rang), [1, 2]);
+      expect(
+        sansLaPrincipale.map((j) => j.premierCanal),
+        toutes.skip(1).map((j) => j.premierCanal),
+        reason: 'les canaux restent réservés par rang',
+      );
+      expect(
+        sansLaPrincipale.map((j) => j.niveau),
+        toutes.skip(1).map((j) => j.niveau),
+        reason: 'le niveau des autres ne bouge pas',
+      );
+
+      // Et rien ne sonne quand toutes se taisent.
+      final Reglages silence =
+          Reglages(voix: [for (final Voix v in trois) v.avec(muette: true)]);
+      expect(silence.voixJouees(morceau), isEmpty);
+    });
+
     test('le rubato appartient au chef, pas aux voix', () {
       // Deux voix qui respireraient chacune de leur côté se
       // désynchroniseraient. Les écarts se calculent une fois et se
