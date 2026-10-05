@@ -205,6 +205,39 @@ class RenduAudio {
     );
   }
 
+  /// Commence un rendu qu'on fabrique tranche par tranche, à partir de
+  /// l'échantillon [depuis] (zéro : le début du morceau).
+  ///
+  /// C'est le levier qui rend l'écoute réactive sur un long morceau (Ludo,
+  /// 05/10/2026, un Queen de six minutes mettait six à sept secondes à
+  /// repartir après chaque réglage). L'hôte fabrique les premières secondes,
+  /// lance le son, puis demande la suite, en avance sur la lecture.
+  ///
+  /// **Partir du milieu** ne coupe pas les notes qui sonnent déjà : le rendu
+  /// démarre [elan] secondes avant [depuis], et rallume à cet instant les
+  /// notes alors tenues. Les tranches rendent donc de [RenduProgressif.debut]
+  /// et non de [depuis] : à l'hôte de jeter ce qui précède [depuis]. La note
+  /// rallumée attaque une seconde plus tôt que l'endroit écouté, la
+  /// réverbération a eu le temps de s'installer : l'oreille entend une note
+  /// qui continue, pas une note qui part.
+  ///
+  /// Un nouveau rendu sur le même synthétiseur invalide celui-ci : sa tranche
+  /// suivante lève alors [StateError] plutôt que de rendre un son faux.
+  RenduProgressif commencer(
+    Melodie partition, {
+    Reglages reglages = const Reglages(),
+    int depuis = 0,
+    double elan = 1.0,
+  }) {
+    final _RenduEnCours rendu = _preparer(partition, reglages);
+    final int depart = depuis <= 0
+        ? 0
+        : (depuis - (elan * frequenceRendu).round()).clamp(0, rendu.total);
+    rendu.allerA(depart);
+    _enAttente = rendu;
+    return RenduProgressif._(this, rendu, _echantillonsMusique);
+  }
+
   /// Tout ce qui précède le premier échantillon : la mélodie jouable, les
   /// canaux installés, les événements triés et le tampon dimensionné.
   _RenduEnCours _preparer(Melodie partition, Reglages reglages) {
@@ -393,6 +426,36 @@ class _RenduEnCours {
   /// Rang du prochain événement à jouer.
   int _prochain = 0;
 
+  /// Le premier échantillon que ce rendu fabrique.
+  int debut = 0;
+
+  /// Saute à l'échantillon [depart] sans rien rendre avant : les événements
+  /// antérieurs sont passés, et les notes encore tenues à cet instant se
+  /// rallument. À appeler avant la première tranche.
+  void allerA(int depart) {
+    if (depart <= 0) return;
+    final Map<int, _Evenement> tenues = {};
+    while (_prochain < evenements.length) {
+      final _Evenement e = evenements[_prochain];
+      if (_echantillon(e) >= depart) break;
+      final int cle = e.canal << 8 | e.hauteur;
+      if (e.debut) {
+        tenues[cle] = e;
+      } else {
+        tenues.remove(cle);
+      }
+      _prochain++;
+    }
+    for (final _Evenement e in tenues.values) {
+      synth.noteOn(channel: e.canal, key: e.hauteur, velocity: e.velocite);
+    }
+    _position = depart;
+    debut = depart;
+  }
+
+  int _echantillon(_Evenement e) =>
+      (e.temps * secondesParTemps * frequenceRendu).round().clamp(0, total);
+
   /// Rend les échantillons de la position courante jusqu'à [fin] (exclue),
   /// dans un tampon neuf de cette taille-là.
   ///
@@ -404,9 +467,7 @@ class _RenduEnCours {
 
     while (_prochain < evenements.length) {
       final _Evenement e = evenements[_prochain];
-      final int cible = (e.temps * secondesParTemps * frequenceRendu)
-          .round()
-          .clamp(0, total);
+      final int cible = _echantillon(e);
       if (cible >= fin) break;
 
       if (cible > _position) {
@@ -430,6 +491,38 @@ class _RenduEnCours {
     }
 
     return tampon;
+  }
+}
+
+/// Un rendu fabriqué tranche par tranche, voir [RenduAudio.commencer].
+class RenduProgressif {
+  RenduProgressif._(this._proprietaire, this._rendu, this.echantillonsMusique);
+
+  final RenduAudio _proprietaire;
+  final _RenduEnCours _rendu;
+
+  /// Longueur du rendu entier, queue comprise, en échantillons.
+  int get total => _rendu.total;
+
+  /// Longueur de la partie musicale, celle que dessine la ligne d'onde.
+  final int echantillonsMusique;
+
+  /// Le premier échantillon fabriqué : un peu avant l'endroit demandé.
+  int get debut => _rendu.debut;
+
+  /// Le prochain échantillon à fabriquer.
+  int get position => _rendu._position;
+
+  /// Vrai quand tout est fabriqué jusqu'au bout.
+  bool get fini => _rendu._position >= _rendu.total;
+
+  /// Fabrique les [longueur] échantillons suivants, ou ce qu'il en reste.
+  ArrayInt16 suivante(int longueur) {
+    if (_proprietaire._enAttente != _rendu) {
+      throw StateError('un autre rendu est passé sur ce synthétiseur');
+    }
+    final int fin = (_rendu._position + longueur).clamp(0, _rendu.total);
+    return _rendu.tranche(fin);
   }
 }
 
