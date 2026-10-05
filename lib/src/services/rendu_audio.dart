@@ -223,19 +223,31 @@ class RenduAudio {
   ///
   /// Un nouveau rendu sur le même synthétiseur invalide celui-ci : sa tranche
   /// suivante lève alors [StateError] plutôt que de rendre un son faux.
+  ///
+  /// [ratioMusique], s'il est donné, dit l'endroit en part de la partie
+  /// musicale (0.0 à 1.0), comme la ligne d'onde : il remplace [depuis], et
+  /// évite à l'hôte de préparer la partition une première fois rien que pour
+  /// en connaître la longueur.
   RenduProgressif commencer(
     Melodie partition, {
     Reglages reglages = const Reglages(),
     int depuis = 0,
+    double? ratioMusique,
     double elan = 1.0,
   }) {
     final _RenduEnCours rendu = _preparer(partition, reglages);
+    if (ratioMusique != null) {
+      depuis = (_echantillonsMusique * ratioMusique.clamp(0.0, 1.0))
+          .round()
+          .clamp(0, rendu.total);
+    }
     final int depart = depuis <= 0
         ? 0
         : (depuis - (elan * frequenceRendu).round()).clamp(0, rendu.total);
     rendu.allerA(depart);
     _enAttente = rendu;
-    return RenduProgressif._(this, rendu, _echantillonsMusique);
+    return RenduProgressif._(this, rendu, _echantillonsMusique)
+      .._depuis = depuis;
   }
 
   /// Tout ce qui précède le premier échantillon : la mélodie jouable, les
@@ -509,6 +521,10 @@ class RenduProgressif {
 
   /// Le premier échantillon fabriqué : un peu avant l'endroit demandé.
   int get debut => _rendu.debut;
+
+  /// L'endroit demandé, en échantillons.
+  int get depuis => _depuis;
+  int _depuis = 0;
 
   /// Le prochain échantillon à fabriquer.
   int get position => _rendu._position;
