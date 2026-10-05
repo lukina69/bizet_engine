@@ -73,16 +73,39 @@ class RenduAudio {
   void chargerSoundFont(ByteData donnees) {
     if (_synth != null) return;
 
-    _synth = Synthesizer.loadByteData(
+    _synth = monter(
       donnees,
-      SynthesizerSettings(
-        sampleRate: frequenceRendu,
-        blockSize: 64,
-        maximumPolyphony: 64,
-        enableReverbAndChorus: reverberation,
-      ),
+      frequenceRendu: frequenceRendu,
+      reverberation: reverberation,
     );
   }
+
+  /// Monte le synthétiseur d'une banque, sans rien changer à un rendu.
+  ///
+  /// C'est la part lourde du chargement : lire toute la banque et en tirer
+  /// les sons. Séparée de [chargerSoundFont] pour qu'un hôte puisse la faire
+  /// à part, sur un autre fil (un isolate), puis remettre le résultat à
+  /// [adopter]. L'appli s'en sert pour monter les instruments pendant son
+  /// animation d'ouverture sans la faire saccader (05/10/2026).
+  static Synthesizer monter(
+    ByteData donnees, {
+    int frequenceRendu = frequence,
+    bool reverberation = true,
+  }) =>
+      Synthesizer.loadByteData(
+        donnees,
+        SynthesizerSettings(
+          sampleRate: frequenceRendu,
+          blockSize: 64,
+          maximumPolyphony: 64,
+          enableReverbAndChorus: reverberation,
+        ),
+      );
+
+  /// Prend un synthétiseur monté par [monter], s'il n'y en a pas déjà un. Il
+  /// doit l'avoir été avec la même fréquence et la même réverbération que ce
+  /// rendu.
+  void adopter(Synthesizer synth) => _synth ??= synth;
 
   /// Enveloppe d'un tampon : [points] valeurs entre 0 et 1, chacune le pic du
   /// segment correspondant. Sert à dessiner la forme d'onde. On peut se
