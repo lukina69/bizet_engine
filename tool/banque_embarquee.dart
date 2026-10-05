@@ -85,10 +85,15 @@ void main(List<String> args) {
 
 /// Les sonorités livrées avec l'application.
 ///
-/// Huit sonorités de `Bizet_v4`, choisies avec Ludo pour couvrir les familles
-/// d'un bout à l'autre — un son qui s'éteint et un son qui se tient dans
-/// chaque registre — sans dépasser six méga-octets. Le piano acoustique s'y
-/// ajoute à part : il ne vient pas de cette banque-là.
+/// Neuf sonorités de `Bizet_v4`, choisies avec Ludo pour couvrir les familles
+/// d'un bout à l'autre. Le piano acoustique s'y ajoute à part : il ne vient
+/// pas de cette banque-là. Dix en tout, la version gratuite de l'appli.
+///
+/// Le 05/10/2026, Ludo a retiré le tuba, léger mais inaudible, et fait
+/// entrer la clarinette et la guitare classique : les deux familles que
+/// tout le monde reconnaît à l'oreille et qui manquaient, les bois à anche et
+/// les guitares. Les deux ont leur registre décrit dans le catalogue, donc
+/// l'octave automatique. Environ dix méga-octets en tout.
 ///
 /// En sortir une allège l'application d'autant, mais prive l'utilisateur de ce
 /// son tant qu'il ne l'a pas téléchargé. C'est un arbitrage à faire à
@@ -99,8 +104,9 @@ const Set<int> embarquees = {
   12, // marimba — le bois qu'on frappe
   40, // violon — la voix qui chante
   42, // violoncelle — la même, en grave
+  24, // guitare classique — les cordes qu'on pince
   56, // trompette — le cuivre qui perce
-  58, // tuba — le fond
+  71, // clarinette — l'anche qui chante
   73, // flûte — le souffle
 };
 
