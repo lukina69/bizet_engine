@@ -70,4 +70,47 @@ void main() {
     expect(relue.tonique, 7);
     expect(relue.majeur, isFalse);
   });
+
+  group('la tonalité devinée', () {
+    /// Le portrait d'une suite de notes d'égale durée.
+    List<double> portrait(List<int> hauteurs) {
+      final List<double> durees = List.filled(12, 0);
+      for (final int h in hauteurs) {
+        durees[h % 12] += 1;
+      }
+      return durees;
+    }
+
+    test('une gamme de do majeur qui revient à do', () {
+      final Armure a = Armure.devinee(
+        portrait([60, 62, 64, 65, 67, 69, 71, 72, 67, 64, 60, 67, 60]),
+      )!;
+      expect(a.tonique, 0);
+      expect(a.majeur, isTrue);
+    });
+
+    test('un air en la mineur, avec son sol dièse', () {
+      final Armure a = Armure.devinee(
+        portrait([69, 71, 72, 74, 76, 77, 80, 81, 76, 72, 69, 76, 69, 72]),
+      )!;
+      expect(a.tonique, 9);
+      expect(a.majeur, isFalse);
+    });
+
+    test('transposer le morceau transpose la tonalité devinée', () {
+      const List<int> air = [60, 62, 64, 65, 67, 69, 71, 72, 67, 64, 60];
+      for (int ecart = 0; ecart < 12; ecart++) {
+        final Armure a = Armure.devinee(
+          portrait([for (final int h in air) h + ecart]),
+        )!;
+        expect(a.tonique, ecart, reason: 'écart $ecart');
+        expect(a.majeur, isTrue, reason: 'écart $ecart');
+      }
+    });
+
+    test('trop peu de notes différentes : on ne devine pas', () {
+      expect(Armure.devinee(portrait([60, 64, 67, 60, 64])), isNull);
+      expect(Armure.devinee(List.filled(12, 0)), isNull);
+    });
+  });
 }

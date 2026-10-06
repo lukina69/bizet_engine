@@ -62,8 +62,21 @@ class MidiParser {
       tempo: collecte.tempo ?? 120,
       instrumentMidi: collecte.programme ?? 0,
       mesures: _enMesures(collecte),
-      armure: collecte.armure,
+      // Un fichier qui ne déclare pas son armure : on la devine, pour que
+      // le mode reste réglable.
+      armure: collecte.armure ?? _armureDevinee(collecte),
     );
+  }
+
+  /// La tonalité la plus vraisemblable, d'après le temps passé sur chacune
+  /// des douze notes. Les percussions n'y sont pas : elles ne sont jamais
+  /// collectées.
+  Armure? _armureDevinee(_Collecte collecte) {
+    final List<double> durees = List.filled(12, 0);
+    for (final _NoteBrute n in collecte.notes) {
+      durees[n.hauteur % 12] += n.duree;
+    }
+    return Armure.devinee(durees);
   }
 
   /// Parcourt une piste MTrk et verse ce qu'elle contient dans [collecte].

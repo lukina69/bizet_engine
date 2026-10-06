@@ -147,9 +147,38 @@ void main() {
       expect(armure.majeur, isFalse);
     });
 
-    test('sans armure écrite, pas d\'armure devinée', () {
+    test('sans armure écrite et avec trop peu de notes, rien n\'est deviné',
+        () {
       expect(MidiParser().parse(fichier([piste(note(60, 480))])).armure,
           isNull);
+    });
+
+    test('sans armure écrite, elle se devine sur les notes', () {
+      // « Au clair de la lune » en sol majeur, avec sa cadence.
+      const List<int> air = [
+        67, 67, 67, 69, 71, 69, 67, 71, 69, 69, 67, //
+        69, 69, 69, 69, 64, 64, 69, 67, 66, 64, 62, //
+        67, 67, 67, 69, 71, 69, 67, 71, 69, 69, 67,
+      ];
+      final Armure armure = MidiParser().parse(fichier([
+        piste([for (final int h in air) ...note(h, 480)]),
+      ])).armure!;
+      expect(armure.tonique, 7);
+      expect(armure.majeur, isTrue);
+    });
+
+    test('une armure écrite n\'est jamais remplacée par une devinée', () {
+      // Les notes penchent vers do majeur, le fichier dit ré mineur : il
+      // fait foi.
+      final Armure armure = MidiParser().parse(fichier([
+        piste([
+          0x00, 0xFF, 0x59, 0x02, 0xFF, 1,
+          for (final int h in [60, 62, 64, 65, 67, 69, 71, 72, 67, 64, 60])
+            ...note(h, 480),
+        ]),
+      ])).armure!;
+      expect(armure.tonique, 2);
+      expect(armure.majeur, isFalse);
     });
   });
 
